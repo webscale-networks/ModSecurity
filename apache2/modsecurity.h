@@ -743,4 +743,8 @@ void DSOLOCAL msc_alert(modsec_rec *msr, int level, msre_actionset *actionset, c
 
 apr_status_t DSOLOCAL modsecurity_request_body_clear(modsec_rec *msr, char **error_msg);
 
+// Define an apache hook for receiving notifications when modsecurity actions
+// are taken on a request.
+AP_DECLARE_HOOK(void, modsecurity_action_taken, (request_rec *r, int action));
+
 #endif
