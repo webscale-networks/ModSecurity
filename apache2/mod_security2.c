@@ -98,6 +98,13 @@ int (*modsecDropAction)(request_rec *r) = NULL;
 #endif
 static int server_limit, thread_limit;
 
+/* -- Hook implementations -- */
+
+APR_HOOK_STRUCT(
+  APR_HOOK_LINK(modsecurity_action_taken)
+);
+AP_IMPLEMENT_HOOK_VOID(modsecurity_action_taken, (request_rec *r, int action), (r, action));
+
 /* -- Miscellaneous functions -- */
 
 /**
@@ -399,6 +406,9 @@ int perform_interception(modsec_rec *msr) {
                     phase_text, actionset->intercept_action);
             break;
     }
+    // Call the hook after the action has been taken but before any logging
+    // occurs.
+    ap_run_modsecurity_action_taken(msr->r, actionset->intercept_action);
 
     /* If the level is not high enough to add an alert message, but "auditlog"
      * is enabled, then still add the message. */
