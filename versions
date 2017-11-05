@@ -1,0 +1,2 @@
+# THe httpd version obtained from the Webscale repo at httpd/version.
+HTTPD_VERSION=2.4.27-4
