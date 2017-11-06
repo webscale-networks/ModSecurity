@@ -1566,9 +1566,11 @@ apr_status_t msre_action_setvar_execute(modsec_rec *msr, apr_pool_t *mptmp,
     var_name = s + 1;
     *s = '\0';
 
-    if (strcasecmp(col_name,"USER") == 0 || strcasecmp(col_name,"SESSION") == 0
+    if (msr->txcfg->webappid_on_all_collections
+        || strcasecmp(col_name, "USER") == 0
+        || strcasecmp(col_name, "SESSION") == 0
         || strcasecmp(col_name, "RESOURCE") == 0) {
-	real_col_name = apr_psprintf(mptmp, "%s_%s", msr->txcfg->webappid, col_name);
+        real_col_name = apr_psprintf(mptmp, "%s_%s", msr->txcfg->webappid, col_name);
     }
 
     /* Locate the collection. */
@@ -1777,7 +1779,7 @@ static apr_status_t msre_action_expirevar_execute(modsec_rec *msr, apr_pool_t *m
                 msr_log(msr, 3, "Could not expire variable \"%s.%s\" as the collection does not exist.",
                     log_escape(msr->mp, col_name), log_escape(msr->mp, var_name));
             }
-            
+
             return 0;
         }
     } else {
@@ -1785,7 +1787,7 @@ static apr_status_t msre_action_expirevar_execute(modsec_rec *msr, apr_pool_t *m
             msr_log(msr, 3, "Asked to expire variable \"%s\", but no collection name specified. ",
                 log_escape(msr->mp, var_name));
         }
-        
+
         return 0;
     }
 
@@ -1880,7 +1882,7 @@ static apr_status_t msre_action_deprecatevar_execute(modsec_rec *msr, apr_pool_t
                 msr_log(msr, 3, "Could not deprecate variable \"%s.%s\" as the collection does "
                     "not exist.", log_escape(msr->mp, col_name), log_escape(msr->mp, var_name));
             }
-            
+
             return 0;
         }
     } else {
@@ -1888,7 +1890,7 @@ static apr_status_t msre_action_deprecatevar_execute(modsec_rec *msr, apr_pool_t
             msr_log(msr, 3, "Asked to deprecate variable \"%s\", but no collection name specified. ",
                 log_escape(msr->mp, var_name));
         }
-        
+
         return 0;
     }
 
@@ -2093,7 +2095,7 @@ static apr_status_t msre_action_initcol_execute(modsec_rec *msr, apr_pool_t *mpt
     msre_rule *rule, msre_action *action)
 {
     char *data = apr_pstrdup(msr->mp, action->param);
-    char *col_name = NULL, *col_key = NULL;
+    char *col_name = NULL, *real_col_name, *col_key = NULL;
     unsigned int col_key_len;
 
     msc_string *var = NULL;
@@ -2116,7 +2118,12 @@ static apr_status_t msre_action_initcol_execute(modsec_rec *msr, apr_pool_t *mpt
     col_key = var->value;
     col_key_len = var->value_len;
 
-    return init_collection(msr, col_name, col_name, col_key, col_key_len);
+    if (msr->txcfg->webappid_on_all_collections) {
+      real_col_name = apr_psprintf(mptmp, "%s_%s", msr->txcfg->webappid, col_name);
+    } else {
+      real_col_name = col_name;
+    }
+    return init_collection(msr, real_col_name, col_name, col_key, col_key_len);
 }
 
 /* setsid */
@@ -2771,7 +2778,7 @@ void msre_engine_register_default_actions(msre_engine *engine) {
         NULL,
         msre_action_sanitizeRequestHeader_execute
     );
-    
+
     /* sanitizeRequestHeader */
     msre_engine_action_register(engine,
         "sanitizeRequestHeader",
@@ -2797,7 +2804,7 @@ void msre_engine_register_default_actions(msre_engine *engine) {
         NULL,
         msre_action_sanitizeResponseHeader_execute
     );
-    
+
     /* sanitizeResponseHeader */
     msre_engine_action_register(engine,
         "sanitizeResponseHeader",

@@ -105,6 +105,7 @@ void *create_directory_config(apr_pool_t *mp, char *path)
     /* Misc */
     dcfg->data_dir = NOT_SET_P;
     dcfg->webappid = NOT_SET_P;
+    dcfg->webappid_on_all_collections = NOT_SET;
     dcfg->sensor_id = NOT_SET_P;
     dcfg->httpBlkey = NOT_SET_P;
 
@@ -536,6 +537,8 @@ void *merge_directory_configs(apr_pool_t *mp, void *_parent, void *_child)
         ? parent->data_dir : child->data_dir);
     merged->webappid = (child->webappid == NOT_SET_P
         ? parent->webappid : child->webappid);
+    merged->webappid_on_all_collections = (child->webappid_on_all_collections == NOT_SET
+        ? parent->webappid_on_all_collections : child->webappid_on_all_collections);
     merged->sensor_id = (child->sensor_id == NOT_SET_P
         ? parent->sensor_id : child->sensor_id);
     merged->httpBlkey = (child->httpBlkey == NOT_SET_P
@@ -699,6 +702,7 @@ void init_directory_config(directory_config *dcfg)
     /* Misc */
     if (dcfg->data_dir == NOT_SET_P) dcfg->data_dir = NULL;
     if (dcfg->webappid == NOT_SET_P) dcfg->webappid = "default";
+    if (dcfg->webappid_on_all_collections == NOT_SET) dcfg->webappid_on_all_collections = 0;
     if (dcfg->sensor_id == NOT_SET_P) dcfg->sensor_id = "default";
     if (dcfg->httpBlkey == NOT_SET_P) dcfg->httpBlkey = NULL;
 
@@ -1213,7 +1217,7 @@ static const char *cmd_audit_log(cmd_parms *cmd, void *_dcfg, const char *p1)
     else {
         const char *file_name = ap_server_root_relative(cmd->pool, dcfg->auditlog_name);
         apr_status_t rc;
-        
+
         if (dcfg->auditlog_fileperms == NOT_SET) {
             dcfg->auditlog_fileperms = CREATEMODE;
         }
@@ -2619,6 +2623,13 @@ static const char *cmd_web_app_id(cmd_parms *cmd, void *_dcfg, const char *p1)
     return NULL;
 }
 
+static const char *cmd_web_app_id_on_all_collections(cmd_parms *cmd, void *_dcfg, int on)
+{
+    directory_config *dcfg = _dcfg;
+    dcfg->webappid_on_all_collections = on;
+    return NULL;
+}
+
 static const char *cmd_sensor_id(cmd_parms *cmd, void *_dcfg, const char *p1)
 {
     directory_config *dcfg = (directory_config *)_dcfg;
@@ -3886,6 +3897,14 @@ const command_rec module_directives[] = {
         NULL,
         CMD_SCOPE_ANY,
         "id"
+    ),
+
+    AP_INIT_FLAG (
+        "SecWebAppIdOnAllCollections",
+        cmd_web_app_id_on_all_collections,
+        NULL,
+        CMD_SCOPE_ANY,
+        "On or Off"
     ),
 
     AP_INIT_TAKE1 (
