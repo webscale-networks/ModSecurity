@@ -86,7 +86,7 @@ static const char *phase_name(int phase) {
             return "LOGGING";
             break;
     }
-    
+
     return "INVALID";
 }
 #endif
@@ -272,7 +272,7 @@ static void modsecurity_persist_data(modsec_rec *msr) {
         arr = apr_table_elts(msr->collections);
         te = (apr_table_entry_t *)arr->elts;
         for (i = 0; i < arr->nelts; i++) {
-            collections_remove_stale(msr, te[i].key);
+            collections_remove_stale(msr, (apr_table_t *)te[i].val);
         }
 
         msr->time_gc = apr_time_now() - time_after;
@@ -290,8 +290,8 @@ static void modsecurity_persist_data(modsec_rec *msr) {
 static apr_status_t modsecurity_tx_cleanup(void *data) {
     modsec_rec *msr = (modsec_rec *)data;
     char *my_error_msg = NULL;
-    
-    if (msr == NULL) return APR_SUCCESS;    
+
+    if (msr == NULL) return APR_SUCCESS;
 
     /* Multipart processor cleanup. */
     if (msr->mpd != NULL) multipart_cleanup(msr);
@@ -546,7 +546,7 @@ static int is_response_status_relevant(modsec_rec *msr, int status) {
     if (rc == PCRE_ERROR_NOMATCH) return 0;
 
     msr_log(msr, 1, "Regex processing failed (rc %d): %s", rc, my_error_msg);
-    
+
     return 0;
 }
 
@@ -556,17 +556,17 @@ static int is_response_status_relevant(modsec_rec *msr, int status) {
 static apr_status_t modsecurity_process_phase_request_headers(modsec_rec *msr) {
     apr_time_t time_before;
     apr_status_t rc = 0;
-    
+
     if (msr->txcfg->debuglog_level >= 4) {
         msr_log(msr, 4, "Starting phase REQUEST_HEADERS.");
     }
-    
+
     time_before = apr_time_now();
 
     if (msr->txcfg->ruleset != NULL) {
         rc = msre_ruleset_process_phase(msr->txcfg->ruleset, msr);
     }
-    
+
     msr->time_phase1 = apr_time_now() - time_before;
 
     return rc;
@@ -584,20 +584,20 @@ static apr_status_t modsecurity_process_phase_request_body(modsec_rec *msr) {
         if (msr->txcfg->debuglog_level >= 4) {
             msr_log(msr, 4, "Skipping phase REQUEST_BODY (allow used).");
         }
-        
+
         return 0;
     } else {
         if (msr->txcfg->debuglog_level >= 4) {
             msr_log(msr, 4, "Starting phase REQUEST_BODY.");
         }
     }
-    
+
     time_before = apr_time_now();
 
     if (msr->txcfg->ruleset != NULL) {
         rc = msre_ruleset_process_phase(msr->txcfg->ruleset, msr);
     }
-    
+
     msr->time_phase2 = apr_time_now() - time_before;
 
     return rc;
@@ -609,25 +609,25 @@ static apr_status_t modsecurity_process_phase_request_body(modsec_rec *msr) {
 static apr_status_t modsecurity_process_phase_response_headers(modsec_rec *msr) {
     apr_time_t time_before;
     apr_status_t rc = 0;
-    
+
     if (msr->allow_scope == ACTION_ALLOW) {
         if (msr->txcfg->debuglog_level >= 4) {
             msr_log(msr, 4, "Skipping phase RESPONSE_HEADERS (allow used).");
         }
-        
+
         return 0;
     } else {
         if (msr->txcfg->debuglog_level >= 4) {
             msr_log(msr, 4, "Starting phase RESPONSE_HEADERS.");
         }
     }
-    
+
     time_before = apr_time_now();
 
     if (msr->txcfg->ruleset != NULL) {
         rc = msre_ruleset_process_phase(msr->txcfg->ruleset, msr);
     }
-    
+
     msr->time_phase3 = apr_time_now() - time_before;
 
     return rc;
@@ -639,25 +639,25 @@ static apr_status_t modsecurity_process_phase_response_headers(modsec_rec *msr) 
 static apr_status_t modsecurity_process_phase_response_body(modsec_rec *msr) {
     apr_time_t time_before;
     apr_status_t rc = 0;
-    
+
     if (msr->allow_scope == ACTION_ALLOW) {
         if (msr->txcfg->debuglog_level >= 4) {
             msr_log(msr, 4, "Skipping phase RESPONSE_BODY (allow used).");
         }
-        
+
         return 0;
     } else {
         if (msr->txcfg->debuglog_level >= 4) {
             msr_log(msr, 4, "Starting phase RESPONSE_BODY.");
         }
     }
-    
+
     time_before = apr_time_now();
 
     if (msr->txcfg->ruleset != NULL) {
         rc = msre_ruleset_process_phase(msr->txcfg->ruleset, msr);
     }
-    
+
     msr->time_phase4 = apr_time_now() - time_before;
 
 
@@ -673,15 +673,15 @@ static apr_status_t modsecurity_process_phase_logging(modsec_rec *msr) {
     if (msr->txcfg->debuglog_level >= 4) {
         msr_log(msr, 4, "Starting phase LOGGING.");
     }
-    
+
     time_before = apr_time_now();
 
     if (msr->txcfg->ruleset != NULL) {
         msre_ruleset_process_phase(msr->txcfg->ruleset, msr);
     }
-    
+
     modsecurity_persist_data(msr);
-    
+
     time_after = apr_time_now();
     msr->time_phase5 = time_after - time_before;
 
@@ -713,7 +713,7 @@ static apr_status_t modsecurity_process_phase_logging(modsec_rec *msr) {
             if (msr->txcfg->debuglog_level >= 4) {
                 msr_log(msr, 4, "Audit log: Not configured to run for this request.");
             }
-            
+
             return DECLINED;
             break;
 
@@ -722,7 +722,7 @@ static apr_status_t modsecurity_process_phase_logging(modsec_rec *msr) {
                 if (msr->txcfg->debuglog_level >= 4) {
                     msr_log(msr, 4, "Audit log: Ignoring a non-relevant request.");
                 }
-                
+
                 return DECLINED;
             }
             break;
@@ -742,8 +742,8 @@ static apr_status_t modsecurity_process_phase_logging(modsec_rec *msr) {
     }
 
     sec_audit_logger(msr);
-    
-    msr->time_logging = apr_time_now() - time_after;    
+
+    msr->time_logging = apr_time_now() - time_after;
 
     return 0;
 }
@@ -759,7 +759,7 @@ apr_status_t modsecurity_process_phase(modsec_rec *msr, unsigned int phase) {
         if (msr->txcfg->debuglog_level >= 4) {
             msr_log(msr, 4, "Skipping phase %d as request was already intercepted.", phase);
         }
-        
+
         return 0;
     }
 
@@ -769,7 +769,7 @@ apr_status_t modsecurity_process_phase(modsec_rec *msr, unsigned int phase) {
             msr_log(msr, 4, "Skipping phase %d because it was previously run (at %d now).",
                 phase, msr->phase);
         }
-        
+
         return 0;
     }
 

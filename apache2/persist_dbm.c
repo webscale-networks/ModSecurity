@@ -190,19 +190,19 @@ static apr_table_t *collection_retrieve_ex(apr_sdbm_t *existing_dbm, modsec_rec 
                     if (strcmp(key_to_expire, "__expire_KEY") == 0) {
                         expired = 1;
                     }
-                    
+
                     if (msr->txcfg->debuglog_level >= 9) {
                         msr_log(msr, 9, "collection_retrieve_ex: Removing key \"%s\" from collection.", key_to_expire + 9);
                         msr_log(msr, 9, "collection_retrieve_ex: Removing key \"%s\" from collection.", key_to_expire);
                     }
-                    
+
                     apr_table_unset(col, key_to_expire + 9);
                     apr_table_unset(col, key_to_expire);
-                    
+
                     if (msr->txcfg->debuglog_level >= 4) {
                         msr_log(msr, 4, "collection_retrieve_ex: Removed expired variable \"%s\".", key_to_expire + 9);
                     }
-                    
+
                     break;
                 }
             }
@@ -348,11 +348,11 @@ apr_table_t *collection_retrieve(modsec_rec *msr, const char *col_name,
 {
     apr_time_t time_before = apr_time_now();
     apr_table_t *rtable = NULL;
-    
+
     rtable = collection_retrieve_ex(NULL, msr, col_name, col_key, col_key_len);
-    
+
     msr->time_storage_read += apr_time_now() - time_before;
-    
+
     return rtable;
 }
 
@@ -645,7 +645,10 @@ error:
 /**
  *
  */
-int collections_remove_stale(modsec_rec *msr, const char *col_name) {
+int collections_remove_stale(modsec_rec *msr, apr_table_t *col)
+{
+    msc_string *var_name = NULL;
+    char* col_name;
     char *dbm_filename = NULL;
     apr_sdbm_datum_t key, value;
     apr_sdbm_t *dbm = NULL;
@@ -655,6 +658,12 @@ int collections_remove_stale(modsec_rec *msr, const char *col_name) {
     apr_time_t now = apr_time_sec(msr->request_time);
     int i;
 
+    var_name = (msc_string *)apr_table_get(col, "__name");
+    if (var_name == NULL) {
+        goto error;
+    }
+    col_name = var_name->value;
+
     if (msr->txcfg->data_dir == NULL) {
         /* The user has been warned about this problem enough times already by now.
          * msr_log(msr, 1, "Unable to access collection file (name \"%s\"). Use SecDataDir to "
@@ -663,11 +672,7 @@ int collections_remove_stale(modsec_rec *msr, const char *col_name) {
         goto error;
     }
 
-    if(strstr(col_name,"USER") || strstr(col_name,"SESSION") || strstr(col_name, "RESOURCE"))
-        dbm_filename = apr_pstrcat(msr->mp, msr->txcfg->data_dir, "/", msr->txcfg->webappid, "_", col_name, NULL);
-    else
-        dbm_filename = apr_pstrcat(msr->mp, msr->txcfg->data_dir, "/", col_name, NULL);
-
+    dbm_filename = apr_pstrcat(msr->mp, msr->txcfg->data_dir, "/", col_name, NULL);
     if (msr->txcfg->debuglog_level >= 9) {
         msr_log(msr, 9, "collections_remove_stale: Retrieving collection (name \"%s\", filename \"%s\")",log_escape(msr->mp, col_name),
                 log_escape(msr->mp, dbm_filename));

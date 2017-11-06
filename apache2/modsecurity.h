@@ -572,6 +572,7 @@ struct directory_config {
     /* Misc */
     const char          *data_dir;
     const char          *webappid;
+    int                 *webappid_on_all_collections;
     const char          *sensor_id;
     const char          *httpBlkey;
 

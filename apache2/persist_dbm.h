@@ -23,6 +23,6 @@ apr_table_t DSOLOCAL *collection_retrieve(modsec_rec *msr, const char *col_name,
 
 int DSOLOCAL collection_store(modsec_rec *msr, apr_table_t *collection);
 
-int DSOLOCAL collections_remove_stale(modsec_rec *msr, const char *col_name);
+int DSOLOCAL collections_remove_stale(modsec_rec *msr, apr_table_t *collection);
 
 #endif

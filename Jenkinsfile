@@ -58,18 +58,17 @@ node {
         error("Cannot decode branch name ${env.BRANCH_NAME}")
       }
       issueNumber = m.group(1)
+      m = null;
       version = upstreamVersion + '-webscale' + revision +
         new Date().format('-yyyyMMddHHmmss')
       svnLoc = "${svnRepo}/${issueNumber}"
-      sh("svn delete ${svnLoc} -m 'Delete ${upstreamVersion}/" +
-        "${issueNumber} for rebuild'")
     }
 
     /* Set the build name and description to make it easy to identify
      * from the list of jenkins jobs.
      */
-    currentBuild.displayName = version + ' from ' + env.BRANCH_NAME
-    currentBuild.description = sh(
+    currentBuild.displayName = version
+    currentBuild.description = env.BRANCH_NAME + "<br>" + sh(
       returnStdout: true,
       script: 'git log "--pretty=format:%s (%an)" -1'
     )
@@ -89,6 +88,13 @@ node {
    * Upload the result to subversion.
    */
   stage('publish') {
+    if (!isMasterBuild) {
+      sh(
+        script: "svn delete ${svnLoc} -m 'Delete ${upstreamVersion}/" +
+          "${issueNumber} for rebuild'",
+        returnStatus: true
+      )
+    }
     sh("svn import --quiet --no-ignore -m 'Version ${version}' ${version} ${svnLoc}")
   }
 }
