@@ -22,6 +22,9 @@
 #include "msc_json.h"
 #include "msc_xml.h"
 #include "apr_version.h"
+#ifdef GLOBAL_COLLECTION_LOCK
+#include "http_main.h" /* ap_pglobal */
+#endif
 
 #ifdef WITH_CURL
 #include <curl/curl.h>
@@ -171,9 +174,18 @@ int modsecurity_init(msc_engine *msce, apr_pool_t *mp) {
 #endif /* SET_MUTEX_PERMS */
 
 #ifdef GLOBAL_COLLECTION_LOCK
-    rc = apr_global_mutex_create(&msce->dbm_lock, NULL, APR_LOCK_DEFAULT, mp);
-    if (rc != APR_SUCCESS) {
-        return -1;
+    /* Create the lock within the global pool and save it in the pool user data
+     * so that an httpd -k reload does not result in the mutex becoming invalid
+     * in previous generation processes when the config pool, mp, is destroyed.
+     * The config pool is destroyed before the previous generation completes.
+     */
+    apr_pool_userdata_get((void **)&msce->dbm_lock, "modsecurity-mutex", ap_pglobal);
+    if (!msce->dbm_lock) {
+      rc = apr_global_mutex_create(&msce->dbm_lock, NULL, APR_LOCK_DEFAULT, ap_pglobal);
+      if (rc != APR_SUCCESS) {
+          return -1;
+      }
+      apr_pool_userdata_setn(msce->dbm_lock, "modsecurity-mutex", apr_pool_cleanup_null, ap_pglobal);
     }
 
 #ifdef __SET_MUTEX_PERMS
