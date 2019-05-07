@@ -1,6 +1,5 @@
 #!/bin/bash
 set -e
-
 . versions
 
 VERSION=$1
@@ -37,13 +36,16 @@ printf "libdir = %s/modules\n" "$HTTPD_WS" >>config_vars.mk
 sed -e "s|$HTTPD/build|$WORKSPACE/|" $HTTPD_WS/bin/apxs >apxs
 chmod +x apxs
 
+mkdir -p empty
 ./autogen.sh
 ./configure \
   --prefix="$HTTPD" \
   --libdir="$HTTPD" \
+  --disable-mlogc \
   --with-apr="$HTTPD_WS" \
   --with-apu="$HTTPD_WS" \
   --with-apxs="$WORKSPACE/apxs" \
+  --with-curl="$PWD/empty" \
   --enable-collection-global-lock
 
 make
