@@ -9,7 +9,7 @@
 node {
   projectName = 'modsecurity'
   svnRepo = "file:///repo/${projectName}"
-  upstreamVersion = 'v2.9.2'
+  upstreamVersion = 'v2.9.3'
   isMasterBuild = env.BRANCH_NAME == (upstreamVersion + '-webscale')
 
   stage('check') {
