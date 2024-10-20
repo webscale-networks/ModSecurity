@@ -535,6 +535,8 @@ int TreeCheckData(TreePrefix *prefix, CPTData *prefix_data, unsigned int netmask
 }
 
 int TreePrefixNetmask(modsec_rec *msr, TreePrefix *prefix, unsigned int netmask, int flag)   {
+    // msr can be NULL;
+    assert(!msr || msr->txcfg != NULL);
     CPTData *prefix_data = NULL;
     int ret = 0;
 
@@ -574,6 +576,8 @@ int TreePrefixNetmask(modsec_rec *msr, TreePrefix *prefix, unsigned int netmask,
 }
 
 TreeNode *CPTRetriveNode(modsec_rec *msr, unsigned char *buffer, unsigned int ip_bitmask, TreeNode *node)  {
+    // msr can be NULL;
+    assert(!msr || msr->txcfg != NULL);
     unsigned int x, y;
 
     if(node == NULL)    {
@@ -620,6 +624,8 @@ TreeNode *CPTRetriveParentNode(TreeNode *node)  {
 }
 
 TreeNode *CPTFindElementIPNetblock(modsec_rec *msr, unsigned char *ipdata, unsigned char ip_bitmask, TreeNode *node) {
+    // msr can be NULL;
+    assert(!msr || msr->txcfg != NULL);
     TreeNode *netmask_node = NULL;
     int mask = 0,  bytes = 0;
     int i = 0, j = 0;
@@ -656,15 +662,22 @@ TreeNode *CPTFindElementIPNetblock(modsec_rec *msr, unsigned char *ipdata, unsig
         }
 
         node = CPTRetriveNode(msr, ipdata, ip_bitmask, node);
+        if (!node) {
+            if (msr && msr->txcfg->debuglog_level >= 9) {
+                msr_log(msr, 9, "CPTFindElementIPNetblock: No tree node found.");
+            }
+            return NULL;
+        }
 
-        if (node && node->bit != ip_bitmask)    {
+
+        if (node->bit != ip_bitmask)    {
             if (msr && msr->txcfg->debuglog_level >= 9) {
                 msr_log(msr, 9, "CPTFindElementIPNetblock: Found a tree node but netmask is different.");
             }
             return NULL;
         }
 
-        if (node && node->prefix == NULL)   {
+        if (node->prefix == NULL)   {
             if (msr && msr->txcfg->debuglog_level >= 9) {
                 msr_log(msr, 9, "CPTFindElementIPNetblock: Found a tree node but prefix is NULL.");
             }
@@ -700,6 +713,8 @@ TreeNode *CPTFindElementIPNetblock(modsec_rec *msr, unsigned char *ipdata, unsig
 }
 
 TreeNode *CPTFindElement(modsec_rec *msr, unsigned char *ipdata, unsigned int ip_bitmask, CPTTree *tree)   {
+    // msr can be NULL;
+    assert(!msr || msr->txcfg != NULL);
     TreeNode *node = NULL;
     int mask = 0, bytes = 0;
     unsigned char temp_data[NETMASK_256-1];
@@ -781,6 +796,8 @@ TreeNode *CPTFindElement(modsec_rec *msr, unsigned char *ipdata, unsigned int ip
 }
 
 TreeNode *CPTIpMatch(modsec_rec *msr, unsigned char *ipdata, CPTTree *tree, int type)   {
+    // msr can be NULL;
+    assert(!msr || msr->txcfg != NULL);
 
     if(tree == NULL)  {
         if (msr && msr->txcfg->debuglog_level >= 9) {
@@ -832,13 +849,14 @@ TreeNode *TreeAddIP(const char *buffer, CPTTree *tree, int type) {
     switch(type)    {
 
         case IPV4_TREE:
-            memset(&addr4, 0, sizeof(addr4));
+            memset(&(addr4.s_addr), 0, sizeof(addr4.s_addr));
             memset(ip_strv4, 0x0, NETMASK_32);
 
             strncpy(ip_strv4, buffer, sizeof(ip_strv4));
             *(ip_strv4 + (sizeof(ip_strv4) - 1)) = '\0';
 
             ptr = strdup(ip_strv4);
+            if (ptr == NULL) return NULL; // No way to return a clean error message
             netmask_v4 = is_netmask_v4(ptr);
 
             if (netmask_v4 > NETMASK_32) {
@@ -859,26 +877,23 @@ TreeNode *TreeAddIP(const char *buffer, CPTTree *tree, int type) {
                 ip_strv4[pos] = '\0';
             }
 
-            ret = inet_pton(AF_INET, ip_strv4, &addr4);
+            ret = inet_pton(AF_INET, ip_strv4, &(addr4.s_addr));
 
             if (ret <= 0) {
                 return NULL;
             }
-
-            ip = addr4.s_addr;
-
             tree->count++;
-
-            return CPTAddElement((unsigned char *)&ip, NETMASK_32, tree, netmask_v4);
+            return CPTAddElement((unsigned char *)&(addr4.s_addr), NETMASK_32, tree, netmask_v4);
 
         case IPV6_TREE:
-            memset(&addr6, 0, sizeof(addr6));
+            memset(&(addr6.s6_addr), 0, sizeof(addr6.s6_addr));
             memset(ip_strv6, 0x0, NETMASK_128);
 
             strncpy(ip_strv6, buffer, sizeof(ip_strv6));
             *(ip_strv6 + sizeof(ip_strv6) - 1) = '\0';
 
             ptr = strdup(ip_strv6);
+            if (ptr == NULL) return NULL; // No way to return a clean error message
             netmask_v6 = is_netmask_v6(ptr);
 
             if (netmask_v6 > NETMASK_128) {
@@ -899,7 +914,7 @@ TreeNode *TreeAddIP(const char *buffer, CPTTree *tree, int type) {
                 ip_strv6[pos] = '\0';
             }
 
-            ret = inet_pton(AF_INET6, ip_strv6, &addr6);
+            ret = inet_pton(AF_INET6, ip_strv6, &(addr6.s6_addr));
 
             if (ret <= 0)
             {
@@ -908,7 +923,7 @@ TreeNode *TreeAddIP(const char *buffer, CPTTree *tree, int type) {
 
             tree->count++;
 
-            return CPTAddElement((unsigned char *)&addr6.s6_addr, NETMASK_128, tree, netmask_v6);
+            return CPTAddElement((unsigned char *)&(addr6.s6_addr), NETMASK_128, tree, netmask_v6);
         default:
             return NULL;
     }

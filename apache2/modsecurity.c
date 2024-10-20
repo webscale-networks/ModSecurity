@@ -1,6 +1,6 @@
 /*
 * ModSecurity for Apache 2.x, http://www.modsecurity.org/
-* Copyright (c) 2004-2013 Trustwave Holdings, Inc. (http://www.trustwave.com/)
+* Copyright (c) 2004-2022 Trustwave Holdings, Inc. (http://www.trustwave.com/)
 *
 * You may not use this file except in compliance with
 * the License.  You may obtain a copy of the License at
@@ -30,6 +30,10 @@
 #include <curl/curl.h>
 #endif
 
+#ifdef APLOG_USE_MODULE
+    APLOG_USE_MODULE(security2);
+#endif
+
 unsigned long int DSOLOCAL unicode_codepage = 0;
 
 int DSOLOCAL *unicode_map_table = NULL;
@@ -40,6 +44,8 @@ int DSOLOCAL *unicode_map_table = NULL;
 const char * msc_alert_message(modsec_rec *msr, msre_actionset *actionset, const char *action_message,
     const char *rule_message)
 {
+    assert(msr != NULL);
+    assert(actionset != NULL);
     const char *message = NULL;
 
     if (rule_message == NULL) rule_message = "Unknown error.";
@@ -62,6 +68,8 @@ const char * msc_alert_message(modsec_rec *msr, msre_actionset *actionset, const
 void msc_alert(modsec_rec *msr, int level, msre_actionset *actionset, const char *action_message,
     const char *rule_message)
 {
+    assert(msr != NULL);
+    assert(actionset != NULL);
     const char *message = msc_alert_message(msr, actionset, action_message, rule_message);
 
     msr_log(msr, level, "%s", message);
@@ -117,6 +125,50 @@ msc_engine *modsecurity_create(apr_pool_t *mp, int processing_mode) {
     return msce;
 }
 
+int acquire_global_lock(apr_global_mutex_t **lock, apr_pool_t *mp) {
+    apr_status_t rc;
+    apr_file_t *lock_name;
+    const char *temp_dir;
+    const char *filename;
+
+    // get platform temp dir
+    rc = apr_temp_dir_get(&temp_dir, mp);
+    if (rc != APR_SUCCESS) {
+        ap_log_perror(APLOG_MARK, APLOG_ERR, 0, mp, "ModSecurity: Could not get temp dir");
+        return -1;
+    }
+
+    // use temp path template for lock files
+    char *path = apr_pstrcat(mp, temp_dir, GLOBAL_LOCK_TEMPLATE, NULL);
+
+    rc = apr_file_mktemp(&lock_name, path, 0, mp);
+    if (rc != APR_SUCCESS) {
+        ap_log_perror(APLOG_MARK, APLOG_ERR, 0, mp, " ModSecurity: Could not create temporary file for global lock");
+        return -1;
+    }
+    // below func always return APR_SUCCESS
+    apr_file_name_get(&filename, lock_name);
+
+    rc = apr_global_mutex_create(lock, filename, APR_LOCK_DEFAULT, mp);
+    if (rc != APR_SUCCESS) {
+        ap_log_perror(APLOG_MARK, APLOG_ERR, 0, mp, " ModSecurity: Could not create global mutex");
+        return -1;
+    }
+#if !defined(MSC_TEST)
+#ifdef __SET_MUTEX_PERMS
+#if AP_SERVER_MAJORVERSION_NUMBER > 1 && AP_SERVER_MINORVERSION_NUMBER > 2
+    rc = ap_unixd_set_global_mutex_perms(*lock);
+#else
+    rc = unixd_set_global_mutex_perms(*lock);
+#endif
+    if (rc != APR_SUCCESS) {
+        ap_log_perror(APLOG_MARK, APLOG_ERR, 0, mp, " ModSecurity: Could not set permissions on global mutex");
+        return -1;
+    }
+#endif /* SET_MUTEX_PERMS */
+#endif /* MSC_TEST */
+    return APR_SUCCESS;
+}
 /**
  * Initialise the modsecurity engine. This function must be invoked
  * after configuration processing is complete as Apache needs to know the
@@ -124,6 +176,11 @@ msc_engine *modsecurity_create(apr_pool_t *mp, int processing_mode) {
  */
 int modsecurity_init(msc_engine *msce, apr_pool_t *mp) {
     apr_status_t rc;
+
+    msce->auditlog_lock = msce->geo_lock = NULL;
+#ifdef GLOBAL_COLLECTION_LOCK
+    msce->dbm_lock = NULL;
+#endif
 
     /**
      * Notice that curl is initialized here but never cleaned up. First version
@@ -135,71 +192,17 @@ int modsecurity_init(msc_engine *msce, apr_pool_t *mp) {
 #ifdef WITH_CURL
     curl_global_init(CURL_GLOBAL_ALL);
 #endif
-    /* Serial audit log mutext */
-    rc = apr_global_mutex_create(&msce->auditlog_lock, NULL, APR_LOCK_DEFAULT, mp);
-    if (rc != APR_SUCCESS) {
-        //ap_log_error(APLOG_MARK, APLOG_ERR, rv, s, "mod_security: Could not create modsec_auditlog_lock");
-        //return HTTP_INTERNAL_SERVER_ERROR;
-        return -1;
-    }
+    /* Serial audit log mutex */
+    rc = acquire_global_lock(&msce->auditlog_lock, mp);
+    if (rc != APR_SUCCESS) return -1;
 
-#if !defined(MSC_TEST)
-#ifdef __SET_MUTEX_PERMS
-#if AP_SERVER_MAJORVERSION_NUMBER > 1 && AP_SERVER_MINORVERSION_NUMBER > 2
-    rc = ap_unixd_set_global_mutex_perms(msce->auditlog_lock);
-#else
-    rc = unixd_set_global_mutex_perms(msce->auditlog_lock);
-#endif
-    if (rc != APR_SUCCESS) {
-        // ap_log_error(APLOG_MARK, APLOG_ERR, rc, s, "mod_security: Could not set permissions on modsec_auditlog_lock; check User and Group directives");
-        // return HTTP_INTERNAL_SERVER_ERROR;
-        return -1;
-    }
-#endif /* SET_MUTEX_PERMS */
-
-    rc = apr_global_mutex_create(&msce->geo_lock, NULL, APR_LOCK_DEFAULT, mp);
-    if (rc != APR_SUCCESS) {
-        return -1;
-    }
-
-#ifdef __SET_MUTEX_PERMS
-#if AP_SERVER_MAJORVERSION_NUMBER > 1 && AP_SERVER_MINORVERSION_NUMBER > 2
-    rc = ap_unixd_set_global_mutex_perms(msce->geo_lock);
-#else
-    rc = unixd_set_global_mutex_perms(msce->geo_lock);
-#endif
-    if (rc != APR_SUCCESS) {
-        return -1;
-    }
-#endif /* SET_MUTEX_PERMS */
+    rc = acquire_global_lock(&msce->geo_lock, mp);
+    if (rc != APR_SUCCESS) return -1;
 
 #ifdef GLOBAL_COLLECTION_LOCK
-    /* Create the lock within the global pool and save it in the pool user data
-     * so that an httpd -k reload does not result in the mutex becoming invalid
-     * in previous generation processes when the config pool, mp, is destroyed.
-     * The config pool is destroyed before the previous generation completes.
-     */
-    apr_pool_userdata_get((void **)&msce->dbm_lock, "modsecurity-mutex", ap_pglobal);
-    if (!msce->dbm_lock) {
-      rc = apr_global_mutex_create(&msce->dbm_lock, NULL, APR_LOCK_DEFAULT, ap_pglobal);
-      if (rc != APR_SUCCESS) {
-          return -1;
-      }
-      apr_pool_userdata_setn(msce->dbm_lock, "modsecurity-mutex", apr_pool_cleanup_null, ap_pglobal);
-    }
-
-#ifdef __SET_MUTEX_PERMS
-#if AP_SERVER_MAJORVERSION_NUMBER > 1 && AP_SERVER_MINORVERSION_NUMBER > 2
-    rc = ap_unixd_set_global_mutex_perms(msce->dbm_lock);
-#else
-    rc = unixd_set_global_mutex_perms(msce->dbm_lock);
-#endif
-    if (rc != APR_SUCCESS) {
-        return -1;
-    }
-#endif /* SET_MUTEX_PERMS */
-#endif
-#endif
+    rc = acquire_global_lock(&msce->dbm_lock, mp);
+    if (rc != APR_SUCCESS) return -1;
+#endif /* GLOBAL_COLLECTION_LOCK */
 
     return 1;
 }
@@ -326,6 +329,7 @@ static apr_status_t modsecurity_tx_cleanup(void *data) {
             msr->msc_full_request_buffer != NULL) {
         msr->msc_full_request_length = 0;
         free(msr->msc_full_request_buffer);
+        msr->msc_full_request_buffer = NULL;
     }
 
 #if defined(WITH_LUA)
@@ -333,6 +337,21 @@ static apr_status_t modsecurity_tx_cleanup(void *data) {
     if(msr->L != NULL)  lua_close(msr->L);
     #endif
 #endif
+
+    /* Streams cleanup. */
+    if (msr->stream_input_data != NULL) {
+        free(msr->stream_input_data);
+        msr->stream_input_data = NULL;
+        msr->stream_input_length = 0;
+#ifdef MSC_LARGE_STREAM_INPUT
+        msr->stream_input_allocated_length = 0;
+#endif
+    }
+    if (msr->stream_output_data != NULL) {
+        free(msr->stream_output_data);
+        msr->stream_output_data = NULL;
+        msr->stream_output_length = 0;
+    }
 
     return APR_SUCCESS;
 }
@@ -537,6 +556,7 @@ apr_status_t modsecurity_tx_init(modsec_rec *msr) {
  *
  */
 static int is_response_status_relevant(modsec_rec *msr, int status) {
+    assert(msr != NULL);
     char *my_error_msg = NULL;
     apr_status_t rc;
     char buf[32];
@@ -555,7 +575,11 @@ static int is_response_status_relevant(modsec_rec *msr, int status) {
 
     rc = msc_regexec(msr->txcfg->auditlog_relevant_regex, buf, strlen(buf), &my_error_msg);
     if (rc >= 0) return 1;
+#ifdef WITH_PCRE2
+    if (rc == PCRE2_ERROR_NOMATCH) return 0;
+#else
     if (rc == PCRE_ERROR_NOMATCH) return 0;
+#endif
 
     msr_log(msr, 1, "Regex processing failed (rc %d): %s", rc, my_error_msg);
 
@@ -649,6 +673,7 @@ static apr_status_t modsecurity_process_phase_response_headers(modsec_rec *msr) 
  *
  */
 static apr_status_t modsecurity_process_phase_response_body(modsec_rec *msr) {
+    assert(msr != NULL);
     apr_time_t time_before;
     apr_status_t rc = 0;
 
@@ -680,6 +705,7 @@ static apr_status_t modsecurity_process_phase_response_body(modsec_rec *msr) {
  *
  */
 static apr_status_t modsecurity_process_phase_logging(modsec_rec *msr) {
+    assert(msr != NULL);
     apr_time_t time_before, time_after;
 
     if (msr->txcfg->debuglog_level >= 4) {
@@ -766,6 +792,7 @@ static apr_status_t modsecurity_process_phase_logging(modsec_rec *msr) {
  * in the modsec_rec structure.
  */
 apr_status_t modsecurity_process_phase(modsec_rec *msr, unsigned int phase) {
+    assert(msr != NULL);
     /* Check if we should run. */
     if ((msr->was_intercepted)&&(phase != PHASE_LOGGING)) {
         if (msr->txcfg->debuglog_level >= 4) {

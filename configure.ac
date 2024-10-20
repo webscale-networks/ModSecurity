@@ -30,9 +30,9 @@ AC_PROG_MAKE_SET
 AC_PROG_GREP
 AC_PATH_PROGS(PERL, [perl perl5], )
 AC_PATH_PROGS(ENV_CMD, [env printenv], )
+PKG_PROG_PKG_CONFIG
 
 # Checks for header files.
-AC_HEADER_STDC
 AC_CHECK_HEADERS([fcntl.h limits.h stdlib.h string.h unistd.h sys/types.h sys/stat.h sys/utsname.h])
 
 # Checks for typedefs, structures, and compiler characteristics.
@@ -244,7 +244,7 @@ AC_ARG_ENABLE(mlogc,
 CHECK_CURL()
 
 if test -z "${CURL_VERSION}"; then
-  AC_MSG_NOTICE([NOTE: mlgoc compilation was disabled.])
+  AC_MSG_NOTICE([NOTE: mlogc compilation was disabled.])
   build_mlogc=0
 fi
 
@@ -305,6 +305,22 @@ if test "$build_docs" -eq 1; then
 fi
 
 
+# Add assert() usage
+
+AC_ARG_ENABLE(assertions,
+              AS_HELP_STRING([--enable-assertions],
+                             [Turn on assertions checks (undefine NDEBUG, define _GLIBCXX_ASSERTIONS  & _FORTIFY_SOURCE)]),
+[
+  if test "${enableval}" = "yes"; then
+      assertions='-UNDEBUG -D_FORTIFY_SOURCE=3 -D_GLIBCXX_ASSERTIONS'
+  else
+      assertions='-DNDEBUG'
+  fi
+],
+[
+  assertions='-DNDEBUG'
+])
+    
 # Add PCRE Studying
 
 AC_ARG_ENABLE(pcre-study,
@@ -695,7 +711,7 @@ AC_ARG_ENABLE(large-stream-input,
               AS_HELP_STRING([--enable-large-stream-input],
                              [Enable optimization for large stream input]),
 [
-  if test "$enableval" == "yes"; then
+  if test "$enableval" = "yes"; then
     large_stream_input="-DMSC_LARGE_STREAM_INPUT"
     MODSEC_EXTRA_CFLAGS="$MODSEC_EXTRA_CFLAGS $large_stream_input"
   else
@@ -828,7 +844,7 @@ else
   fi
 fi
 
-MODSEC_EXTRA_CFLAGS="$pcre_study $pcre_match_limit $pcre_match_limit_recursion $pcre_jit $request_early $htaccess_config $lua_cache $debug_conf $debug_cache $debug_acmp $debug_mem $perf_meas $modsec_api $cpu_type $unique_id $log_filename $log_server $log_collection_delete_problem $log_dechunk $log_stopwatch $log_handler $log_server_context $collection_global_lock $large_stream_input"
+MODSEC_EXTRA_CFLAGS="$pcre_study $pcre_match_limit $pcre_match_limit_recursion $pcre_jit $request_early $htaccess_config $lua_cache $debug_conf $debug_cache $debug_acmp $debug_mem $perf_meas $modsec_api $cpu_type $unique_id $log_filename $log_server $log_collection_delete_problem $log_dechunk $log_stopwatch $log_handler $log_server_context $collection_global_lock $large_stream_input $assertions"
 
 APXS_WRAPPER=build/apxs-wrapper
 APXS_EXTRA_CFLAGS=""
@@ -865,6 +881,7 @@ AC_SUBST(APXS_MODULES)
 AC_SUBST(APXS_HTTPD)
 
 CHECK_PCRE()
+CHECK_PCRE2()
 if test "$build_apache2_module" -ne 0 -o "$build_mlogc" -ne 0; then
 CHECK_APR()
 CHECK_APU()
@@ -887,13 +904,13 @@ ORIG_CFLAGS="$CFLAGS $APU_CFLAGS"
 ORIG_CPPFLAGS="$CPPFLAGS"
 CFLAGS="$CFLAGS $APR_CFLAGS"
 CPPFLAGS="$CPPFLAGS $APR_CPPFLAGS"
-AC_TRY_COMPILE(
-	[#include <apr_crypto.h>],
-	[
+AC_LINK_IFELSE(
+	[AC_LANG_PROGRAM([[ #include <apr_crypto.h> ]],
+	[[
           #if APU_HAVE_CRYPTO == 0
           #error APR util was not compiled with crypto support.
           #endif
-	],
+	]])],
 	[ AC_DEFINE([WITH_APU_CRYPTO], [1], [APR util was compiled with crypto support])
 	  MODSEC_EXTRA_CFLAGS="$MODSEC_EXTRA_CFLAGS -DWITH_APU_CRYPTO"
 	],
@@ -904,7 +921,7 @@ AC_TRY_COMPILE(
 CFLAGS="$ORIG_CFLAGS"
 CPPFLAGS="$ORIG_CPPFLAGS"
 
-# Current our unique download backend is curl, furhter we can support more.
+# Currently our unique download backend is curl, further we can support more.
 if test ! -z "${CURL_VERSION}"; then
   AC_DEFINE([WITH_REMOTE_RULES], [1], [Enables SecRemoteRules support])
   MODSEC_EXTRA_CFLAGS="$MODSEC_EXTRA_CFLAGS -DWITH_REMOTE_RULES"

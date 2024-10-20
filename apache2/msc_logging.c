@@ -35,6 +35,7 @@
  * the size counters, update the hash context.
  */
 static int sec_auditlog_write(modsec_rec *msr, const char *data, unsigned int len) {
+    assert(msr != NULL);
     apr_size_t nbytes_written, nbytes = len;
     apr_status_t rc;
 
@@ -86,6 +87,8 @@ static int sec_auditlog_write(modsec_rec *msr, const char *data, unsigned int le
  * some of the fields to make the log line shorter than _limit bytes.
  */
 char *construct_log_vcombinedus_limited(modsec_rec *msr, int _limit, int *was_limited) {
+    assert(msr != NULL);
+    assert(was_limited != NULL);
     char *hostname;
     char *local_user, *remote_user;
     char *referer, *user_agent, *uniqueid;
@@ -234,16 +237,20 @@ static char *construct_auditlog_filename(apr_pool_t *mp, const char *uniqueid) {
      * This is required for mpm-itk & mod_ruid2, though should be harmless for other implementations 
      * It also changes the return statement.
      */
-    char *username;
+    char *userinfo;
+    apr_status_t rc;
     apr_uid_t uid;
     apr_gid_t gid;
     apr_uid_current(&uid, &gid, mp);
-    apr_uid_name_get(&username, uid, mp);
+    rc = apr_uid_name_get(&userinfo, uid, mp);
+    if (rc != APR_SUCCESS) {
+      userinfo = apr_psprintf(mp, "%u", uid);
+    }
 
     apr_time_exp_lt(&t, apr_time_now());
 
     apr_strftime(tstr, &len, 299, "/%Y%m%d/%Y%m%d-%H%M/%Y%m%d-%H%M%S", &t);
-    return apr_psprintf(mp, "/%s%s-%s", username, tstr, uniqueid);
+    return apr_psprintf(mp, "/%s%s-%s", userinfo, tstr, uniqueid);
 }
 
 /**
@@ -401,6 +408,7 @@ static void sec_auditlog_write_producer_header(modsec_rec *msr) {
  * Ouput the Producer header into a JSON generator
  */
 static void sec_auditlog_write_producer_header_json(modsec_rec *msr, yajl_gen g) {
+    assert(msr != NULL);
     char **signatures = NULL;
     int i;
 
@@ -516,6 +524,7 @@ static msre_rule *return_chained_rule(const msre_rule *current, modsec_rec *msr)
 * \retval 1 On Success
 */
 static int chained_is_matched(modsec_rec *msr, const msre_rule *next_rule) {
+    assert(msr != NULL);
     int i = 0;
     const msre_rule *rule = NULL;
 
@@ -534,6 +543,7 @@ static int chained_is_matched(modsec_rec *msr, const msre_rule *next_rule) {
  * Write detailed information about performance metrics into a JSON generator
  */
 static void format_performance_variables_json(modsec_rec *msr, yajl_gen g) {
+    assert(msr != NULL);
     yajl_string(g, "stopwatch");
     yajl_gen_map_open(g);
 
@@ -554,6 +564,8 @@ static void format_performance_variables_json(modsec_rec *msr, yajl_gen g) {
  * Write detailed information about a rule and its actionset into a JSON generator
  */
 static void write_rule_json(modsec_rec *msr, const msre_rule *rule, yajl_gen g) {
+    assert(msr != NULL);
+    assert(rule != NULL);
     const apr_array_header_t *tarr;
     const apr_table_entry_t *telts;
     int been_opened = 0;
@@ -642,6 +654,7 @@ static void write_rule_json(modsec_rec *msr, const msre_rule *rule, yajl_gen g) 
  * Produce an audit log entry in JSON format.
  */
 void sec_audit_logger_json(modsec_rec *msr) {
+    assert(msr != NULL);
     const apr_array_header_t *arr = NULL;
     apr_table_entry_t *te = NULL;
     const apr_array_header_t *tarr_pattern = NULL;
@@ -744,10 +757,13 @@ void sec_audit_logger_json(modsec_rec *msr) {
 
     /* Lock the mutex, but only if we are using serial format. */
     if (msr->txcfg->auditlog_type != AUDITLOG_CONCURRENT) {
-        rc = apr_global_mutex_lock(msr->modsecurity->auditlog_lock);
-        if (rc != APR_SUCCESS) {
-            msr_log(msr, 1, "Audit log: Failed to lock global mutex: %s",
-                get_apr_error(msr->mp, rc));
+        if (!msr->modsecurity->auditlog_lock) msr_log(msr, 1, "Audit log: Global mutex was not created");
+        else {
+            rc = apr_global_mutex_lock(msr->modsecurity->auditlog_lock);
+            if (rc != APR_SUCCESS) {
+                msr_log(msr, 1, "Audit log: Failed to lock global mutex: %s",
+                    get_apr_error(msr->mp, rc));
+            }
         }
     }
 
@@ -992,6 +1008,7 @@ void sec_audit_logger_json(modsec_rec *msr) {
 
                         /* Write the sanitized chunk to the log
                          * and advance to the next chunk. */
+                        chunk->data[chunk->length] = 0;
                         yajl_string(g, chunk->data);
                         chunk_offset += chunk->length;
                     }
@@ -1458,7 +1475,8 @@ void sec_audit_logger_json(modsec_rec *msr) {
         /* Unlock the mutex we used to serialise access to the audit log file. */
         rc = apr_global_mutex_unlock(msr->modsecurity->auditlog_lock);
         if (rc != APR_SUCCESS) {
-            msr_log(msr, 1, "Audit log: Failed to unlock global mutex: %s",
+            msr_log(msr, 1, "Audit log: Failed to unlock global mutex '%s': %s",
+                    apr_global_mutex_lockfile(msr->modsecurity->auditlog_lock),
                     get_apr_error(msr->mp, rc));
         }
 
@@ -1531,6 +1549,7 @@ void sec_audit_logger_json(modsec_rec *msr) {
  * Produce an audit log entry in native format.
  */
 void sec_audit_logger_native(modsec_rec *msr) {
+    assert(msr != NULL);
     const apr_array_header_t *arr = NULL;
     apr_table_entry_t *te = NULL;
     const apr_array_header_t *tarr_pattern = NULL;
@@ -2219,7 +2238,7 @@ void sec_audit_logger_native(modsec_rec *msr) {
                 sec_auditlog_write(msr, text, strlen(text));
             } else  {
                 if ((rule != NULL) && (rule->actionset != NULL) && !rule->actionset->is_chained && (rule->chain_starter == NULL)) {
-                    text = apr_psprintf(msr->mp, "%s\n\n", rule->unparsed);
+                    text = apr_psprintf(msr->mp, "%s\n", rule->unparsed);
                     sec_auditlog_write(msr, text, strlen(text));
                 }
             }
@@ -2238,7 +2257,8 @@ void sec_audit_logger_native(modsec_rec *msr) {
         /* Unlock the mutex we used to serialise access to the audit log file. */
         rc = apr_global_mutex_unlock(msr->modsecurity->auditlog_lock);
         if (rc != APR_SUCCESS) {
-            msr_log(msr, 1, "Audit log: Failed to unlock global mutex: %s",
+            msr_log(msr, 1, "Audit log: Failed to unlock global mutex '%s': %s",
+                    apr_global_mutex_lockfile(msr->modsecurity->auditlog_lock),
                     get_apr_error(msr->mp, rc));
         }
 
@@ -2311,6 +2331,7 @@ void sec_audit_logger_native(modsec_rec *msr) {
  */
 void sec_audit_logger(modsec_rec *msr) {
     #ifdef WITH_YAJL
+    assert(msr != NULL);
     if (msr->txcfg->auditlog_format == AUDITLOGFORMAT_JSON) {
         sec_audit_logger_json(msr);
     } else {

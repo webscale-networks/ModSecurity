@@ -1,6 +1,6 @@
 /*
 * ModSecurity for Apache 2.x, http://www.modsecurity.org/
-* Copyright (c) 2004-2013 Trustwave Holdings, Inc. (http://www.trustwave.com/)
+* Copyright (c) 2004-2022 Trustwave Holdings, Inc. (http://www.trustwave.com/)
 *
 * You may not use this file except in compliance with
 * the License.  You may obtain a copy of the License at
@@ -25,12 +25,6 @@
 #include "apr_optional.h"
 #include "mod_log_config.h"
 
-/*
- * #ifdef APLOG_USE_MODULE
- * APLOG_USE_MODULE(security2);
- * #endif
- */
-
 #include "msc_logging.h"
 #include "msc_util.h"
 
@@ -51,6 +45,10 @@
 #ifdef WITH_YAJL
 #include <yajl/yajl_version.h>
 #endif /* WITH_YAJL */
+
+#ifdef APLOG_USE_MODULE
+    APLOG_USE_MODULE(security2);
+#endif
 
 /* ModSecurity structure */
 
@@ -112,39 +110,52 @@ AP_IMPLEMENT_HOOK_VOID(modsecurity_action_taken, (request_rec *r, int action), (
 *
 * \param mp Pointer to memory pool
 */
-static void version(apr_pool_t *mp) {
+static void version(apr_pool_t *mp, server_rec* s) {
     char *pcre_vrs = NULL;
+    const char *pcre_loaded_vrs = NULL;
+    char pcre2_loaded_vrs_buffer[80] ={0};
 
-    ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, NULL,
+    ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, s,
             "ModSecurity: APR compiled version=\"%s\"; "
             "loaded version=\"%s\"", APR_VERSION_STRING, apr_version_string());
 
     if (strstr(apr_version_string(), APR_VERSION_STRING) == NULL)    {
-        ap_log_error(APLOG_MARK, APLOG_WARNING, 0, NULL, "ModSecurity: Loaded APR do not match with compiled!");
+        ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, "ModSecurity: Loaded APR do not match with compiled!");
     }
 
+#ifdef WITH_PCRE2
+    pcre_vrs = apr_psprintf(mp,"%d.%d ", PCRE2_MAJOR, PCRE2_MINOR);
+    pcre_loaded_vrs = pcre2_loaded_vrs_buffer;
+    pcre2_config(PCRE2_CONFIG_VERSION, pcre2_loaded_vrs_buffer);
+#else
     pcre_vrs = apr_psprintf(mp,"%d.%d ", PCRE_MAJOR, PCRE_MINOR);
+    pcre_loaded_vrs = pcre_version();
+#endif
 
     ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, NULL,
+#ifdef WITH_PCRE2
+            "ModSecurity: PCRE2 compiled version=\"%s\"; "
+#else
             "ModSecurity: PCRE compiled version=\"%s\"; "
-            "loaded version=\"%s\"", pcre_vrs, pcre_version());
+#endif
+            "loaded version=\"%s\"", pcre_vrs, pcre_loaded_vrs);
 
-    if (strstr(pcre_version(),pcre_vrs) == NULL)    {
-        ap_log_error(APLOG_MARK, APLOG_WARNING, 0, NULL, "ModSecurity: Loaded PCRE do not match with compiled!");
+    if (strstr(pcre_loaded_vrs,pcre_vrs) == NULL)    {
+        ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, "ModSecurity: Loaded PCRE do not match with compiled!");
     }
 
     /* Lua version function was removed in current 5.1. Need to check in future versions if it's back */
 #if defined(WITH_LUA)
-    ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, NULL,
+    ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, s,
             "ModSecurity: LUA compiled version=\"%s\"", LUA_VERSION);
 #endif /* WITH_LUA */
 
 #ifdef WITH_YAJL
-    ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, NULL,
+    ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, s,
             "ModSecurity: YAJL compiled version=\"%d.%d.%d\"", YAJL_MAJOR, YAJL_MINOR, YAJL_MICRO);
 #endif /* WITH_YAJL */
 
-    ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, NULL,
+    ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, s,
             "ModSecurity: LIBXML compiled version=\"%s\"", LIBXML_DOTTED_VERSION);
 }
 
@@ -474,6 +485,8 @@ static modsec_rec *retrieve_tx_context(request_rec *r) {
  * phases, redirections, or subrequests.
  */
 static void store_tx_context(modsec_rec *msr, request_rec *r) {
+    assert(msr != NULL);
+    assert(r != NULL);
     apr_table_setn(r->notes, NOTE_MSR, (void *)msr);
 }
 
@@ -490,7 +503,10 @@ static modsec_rec *create_tx_context(request_rec *r) {
     apr_allocator_create(&allocator);
     apr_allocator_max_free_set(allocator, 1024);
     apr_pool_create_ex(&msr->mp, r->pool, NULL, allocator);
-    if (msr->mp == NULL) return NULL;
+    if (msr->mp == NULL) {
+        apr_allocator_destroy(allocator);
+        return NULL;
+    }
     apr_allocator_owner_set(allocator, msr->mp);
 
     msr->modsecurity = modsecurity;
@@ -772,7 +788,7 @@ static int hook_post_config(apr_pool_t *mp, apr_pool_t *mp_log, apr_pool_t *mp_t
         ap_log_error(APLOG_MARK, APLOG_NOTICE | APLOG_NOERRNO, 0, s,
                 "%s configured.", MODSEC_MODULE_NAME_FULL);
 
-        version(mp);
+        version(mp, s);
 
         /* If we've changed the server signature make note of the original. */
         if (new_server_signature != NULL) {
@@ -862,6 +878,9 @@ static int hook_request_early(request_rec *r) {
      */
     msr = create_tx_context(r);
     if (msr == NULL) return DECLINED;
+    if (msr->txcfg->debuglog_level >= 9) {
+        msr_log(msr, 9, "Context created after request failure.");
+    }
 
 #ifdef REQUEST_EARLY
 
@@ -1149,17 +1168,12 @@ static void hook_error_log(const char *file, int line, int level, apr_status_t s
 #endif
     if (msr_ap_server) {
 #if AP_SERVER_MAJORVERSION_NUMBER > 1 && AP_SERVER_MINORVERSION_NUMBER > 2
-        msr = create_tx_context((request_rec *)info->r);
+        msr = create_tx_context((request_rec*)info->r);
 #else
-        msr = create_tx_context((request_rec *)r);
+        msr = create_tx_context((request_rec*)r);
 #endif
-        if (msr != NULL && msr->txcfg->debuglog_level >= 9) {
-            if (msr == NULL) {
-                msr_log(msr, 9, "Failed to create context after request failure.");
-            }
-            else {
-                msr_log(msr, 9, "Context created after request failure.");
-            }
+        if (msr && msr->txcfg->debuglog_level >= 9) {
+            msr_log(msr, 9, "Context created after request failure.");
         }
     }
     if (msr == NULL) return;

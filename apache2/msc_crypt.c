@@ -1,6 +1,6 @@
 /*
  * ModSecurity for Apache 2.x, http://www.modsecurity.org/
- * Copyright (c) 2004-2013 Trustwave Holdings, Inc. (http://www.trustwave.com/)
+ * Copyright (c) 2004-2022 Trustwave Holdings, Inc. (http://www.trustwave.com/)
  *
  * You may not use this file except in compliance with
  * the License.  You may obtain a copy of the License at
@@ -32,13 +32,11 @@
  * \retval NULL on fail
  */
 char *normalize_path(modsec_rec *msr, char *input) {
+    assert(msr != NULL);
+    assert(input != NULL);
     xmlURI *uri = NULL;
     char *parsed_content = NULL;
     char *content = NULL;
-
-    if(msr == NULL) return NULL;
-
-    if(input == NULL) return NULL;
 
     uri = xmlParseURI(input);
 
@@ -195,6 +193,8 @@ char *mschmac(modsec_rec *msr, const char *key, int key_len,
 char *hmac(modsec_rec *msr, const char *key, int key_len,
         unsigned char *msg, int msglen) {
 #endif
+    assert(msr != NULL);
+    assert(msg != NULL);
     apr_sha1_ctx_t ctx;
     unsigned char digest[APR_SHA1_DIGESTSIZE];
     unsigned char hmac_ipad[HMAC_PAD_SIZE], hmac_opad[HMAC_PAD_SIZE];
@@ -346,6 +346,8 @@ int init_response_body_html_parser(modsec_rec *msr)   {
  * \retval -1 on fail
  */
 int do_hash_method(modsec_rec *msr, char *link, int type)   {
+    assert(msr != NULL);
+    assert(link != NULL);
     hash_method **em = NULL;
     int i = 0;
     char *error_msg = NULL;
@@ -386,7 +388,11 @@ int do_hash_method(modsec_rec *msr, char *link, int type)   {
                 case HASH_URL_HREF_HASH_RX:
                     if(em[i]->type == HASH_URL_HREF_HASH_RX)   {
                         rc = msc_regexec_capture(em[i]->param_data, link, strlen(link), ovector, 30, &my_error_msg);
+#ifdef WITH_PCRE2
+                        if ((rc == PCRE2_ERROR_MATCHLIMIT) || (rc == PCRE2_ERROR_RECURSIONLIMIT)) {
+#else
                         if ((rc == PCRE_ERROR_MATCHLIMIT) || (rc == PCRE_ERROR_RECURSIONLIMIT)) {
+#endif
                             msc_string *s = (msc_string *)apr_pcalloc(msr->mp, sizeof(msc_string));
 
                             if (s == NULL) return -1;
@@ -415,7 +421,11 @@ int do_hash_method(modsec_rec *msr, char *link, int type)   {
                                 msr_log(msr, 4, "%s.", error_msg);
                             return -1;
                         }
+#ifdef WITH_PCRE2
+                        if (rc != PCRE2_ERROR_NOMATCH) { /* Match. */
+#else
                         if (rc != PCRE_ERROR_NOMATCH) { /* Match. */
+#endif
                             return 1;
                         }
                     }
@@ -441,7 +451,11 @@ int do_hash_method(modsec_rec *msr, char *link, int type)   {
                 case HASH_URL_FACTION_HASH_RX:
                     if(em[i]->type == HASH_URL_FACTION_HASH_RX)   {
                         rc = msc_regexec_capture(em[i]->param_data, link, strlen(link), ovector, 30, &my_error_msg);
+#ifdef WITH_PCRE2
+                        if ((rc == PCRE2_ERROR_MATCHLIMIT) || (rc == PCRE2_ERROR_RECURSIONLIMIT)) {
+#else
                         if ((rc == PCRE_ERROR_MATCHLIMIT) || (rc == PCRE_ERROR_RECURSIONLIMIT)) {
+#endif
                             msc_string *s = (msc_string *)apr_pcalloc(msr->mp, sizeof(msc_string));
 
                             if (s == NULL) return -1;
@@ -470,7 +484,11 @@ int do_hash_method(modsec_rec *msr, char *link, int type)   {
                                 msr_log(msr, 4, "%s.", error_msg);
                             return -1;
                         }
+#ifdef WITH_PCRE2
+                        if (rc != PCRE2_ERROR_NOMATCH) { /* Match. */
+#else
                         if (rc != PCRE_ERROR_NOMATCH) { /* Match. */
+#endif
                             return 1;
                         }
                     }
@@ -496,7 +514,11 @@ int do_hash_method(modsec_rec *msr, char *link, int type)   {
                 case HASH_URL_LOCATION_HASH_RX:
                     if(em[i]->type == HASH_URL_LOCATION_HASH_RX)   {
                         rc = msc_regexec_capture(em[i]->param_data, link, strlen(link), ovector, 30, &my_error_msg);
+#ifdef WITH_PCRE2
+                        if ((rc == PCRE2_ERROR_MATCHLIMIT) || (rc == PCRE2_ERROR_RECURSIONLIMIT)) {
+#else
                         if ((rc == PCRE_ERROR_MATCHLIMIT) || (rc == PCRE_ERROR_RECURSIONLIMIT)) {
+#endif
                             msc_string *s = (msc_string *)apr_pcalloc(msr->mp, sizeof(msc_string));
 
                             if (s == NULL) return -1;
@@ -525,7 +547,11 @@ int do_hash_method(modsec_rec *msr, char *link, int type)   {
                                 msr_log(msr, 4, "%s.", error_msg);
                             return -1;
                         }
+#ifdef WITH_PCRE2
+                        if (rc != PCRE2_ERROR_NOMATCH) { /* Match. */
+#else
                         if (rc != PCRE_ERROR_NOMATCH) { /* Match. */
+#endif
                             return 1;
                         }
                     }
@@ -551,7 +577,11 @@ int do_hash_method(modsec_rec *msr, char *link, int type)   {
                 case HASH_URL_IFRAMESRC_HASH_RX:
                     if(em[i]->type == HASH_URL_IFRAMESRC_HASH_RX)   {
                         rc = msc_regexec_capture(em[i]->param_data, link, strlen(link), ovector, 30, &my_error_msg);
+#ifdef WITH_PCRE2
+                        if ((rc == PCRE2_ERROR_MATCHLIMIT) || (rc == PCRE2_ERROR_RECURSIONLIMIT)) {
+#else
                         if ((rc == PCRE_ERROR_MATCHLIMIT) || (rc == PCRE_ERROR_RECURSIONLIMIT)) {
+#endif
                             msc_string *s = (msc_string *)apr_pcalloc(msr->mp, sizeof(msc_string));
 
                             if (s == NULL) return -1;
@@ -580,7 +610,11 @@ int do_hash_method(modsec_rec *msr, char *link, int type)   {
                                 msr_log(msr, 4, "%s.", error_msg);
                             return -1;
                         }
+#ifdef WITH_PCRE2
+                        if (rc != PCRE2_ERROR_NOMATCH) { /* Match. */
+#else
                         if (rc != PCRE_ERROR_NOMATCH) { /* Match. */
+#endif
                             return 1;
                         }
                     }
@@ -606,7 +640,11 @@ int do_hash_method(modsec_rec *msr, char *link, int type)   {
                 case HASH_URL_FRAMESRC_HASH_RX:
                     if(em[i]->type == HASH_URL_FRAMESRC_HASH_RX)   {
                         rc = msc_regexec_capture(em[i]->param_data, link, strlen(link), ovector, 30, &my_error_msg);
+#ifdef WITH_PCRE2
+                        if ((rc == PCRE2_ERROR_MATCHLIMIT) || (rc == PCRE2_ERROR_RECURSIONLIMIT)) {
+#else
                         if ((rc == PCRE_ERROR_MATCHLIMIT) || (rc == PCRE_ERROR_RECURSIONLIMIT)) {
+#endif
                             msc_string *s = (msc_string *)apr_pcalloc(msr->mp, sizeof(msc_string));
 
                             if (s == NULL) return -1;
@@ -635,7 +673,11 @@ int do_hash_method(modsec_rec *msr, char *link, int type)   {
                                 msr_log(msr, 4, "%s.", error_msg);
                             return -1;
                         }
+#ifdef WITH_PCRE2
+                        if (rc != PCRE2_ERROR_NOMATCH) { /* Match. */
+#else
                         if (rc != PCRE_ERROR_NOMATCH) { /* Match. */
+#endif
                             return 1;
                         }
                     }
@@ -1011,6 +1053,7 @@ ctx_error:
  * \retval -1 On fail
  */
 int inject_hashed_response_body(modsec_rec *msr, int elts) {
+    assert(msr != NULL);
     xmlOutputBufferPtr output_buf = NULL;
     xmlCharEncodingHandlerPtr  handler = NULL;
     char *p = NULL;
@@ -1113,8 +1156,8 @@ int inject_hashed_response_body(modsec_rec *msr, int elts) {
             return -1;
         }
 
-        memset(msr->stream_output_data, 0x0, msr->stream_output_length+1);
         memcpy(msr->stream_output_data, xmlOutputBufferGetContent(output_buf), msr->stream_output_length);
+        msr->stream_output_data[msr->stream_output_length] = '\0';
 
         if (msr->txcfg->debuglog_level >= 4)
             msr_log(msr, 4, "inject_hashed_response_body: Copying XML tree from CONTENT to stream buffer [%zu] bytes.", xmlOutputBufferGetSize(output_buf));
@@ -1144,8 +1187,8 @@ int inject_hashed_response_body(modsec_rec *msr, int elts) {
             return -1;
         }
 
-        memset(msr->stream_output_data, 0x0, msr->stream_output_length+1);
         memcpy(msr->stream_output_data, xmlOutputBufferGetContent(output_buf), msr->stream_output_length);
+        msr->stream_output_data[msr->stream_output_length] = '\0';
 
         if (msr->txcfg->debuglog_level >= 4)
             msr_log(msr, 4, "inject_hashed_response_body: Copying XML tree from CONV to stream buffer [%zu] bytes.", xmlOutputBufferGetSize(output_buf));
@@ -1179,9 +1222,9 @@ int inject_hashed_response_body(modsec_rec *msr, int elts) {
             return -1;
         }
 
-        memset(msr->stream_output_data, 0x0, msr->stream_output_length+1);
         memcpy(msr->stream_output_data, (char *)xmlBufferContent(output_buf->buffer), msr->stream_output_length);
         //memcpy(msr->stream_output_data, output_buf->buffer->content, msr->stream_output_length);
+        msr->stream_output_data[msr->stream_output_length] = '\0';
 
         if (msr->txcfg->debuglog_level >= 4)
             msr_log(msr, 4, "inject_hashed_response_body: Copying XML tree from CONTENT to stream buffer [%d] bytes.", msr->stream_output_length);
@@ -1211,9 +1254,9 @@ int inject_hashed_response_body(modsec_rec *msr, int elts) {
             return -1;
         }
 
-        memset(msr->stream_output_data, 0x0, msr->stream_output_length+1);
         memcpy(msr->stream_output_data, (char *)xmlBufferContent(output_buf->conv), msr->stream_output_length);
         //memcpy(msr->stream_output_data, output_buf->conv->content, msr->stream_output_length);
+        msr->stream_output_data[msr->stream_output_length] = '\0';
 
         if (msr->txcfg->debuglog_level >= 4)
             msr_log(msr, 4, "inject_hashed_response_body: Copying XML tree from CONV to stream buffer [%d] bytes.", msr->stream_output_length);
@@ -1250,12 +1293,12 @@ int inject_hashed_response_body(modsec_rec *msr, int elts) {
  * \retval NULL on fail
  */
 char *do_hash_link(modsec_rec *msr, char *link, int type)  {
+    assert(msr != NULL);
+    assert(link != NULL);
     char  *mac_link = NULL;
     char *path_chunk = NULL;
     char *hash_value = NULL;
     char *qm = NULL;
-
-    if(msr == NULL) return NULL;
 
     if(strlen(link) > 7 && strncmp("http:",(char*)link,5)==0){
         path_chunk = strchr(link+7,'/');

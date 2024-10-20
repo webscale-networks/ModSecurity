@@ -6,14 +6,24 @@
  * https://jenkins.webscalenetworks.com/job/product/job/control/pipeline-syntax/globals.
  */
 
+def svn(Closure fn) {
+  withCredentials([
+    sshUserPrivateKey(
+      credentialsId: 'svn-ssh-key',
+      usernameVariable: 'SVN_SSH_USER',
+      keyFileVariable: 'SVN_SSH_KEY',
+    ),
+  ]) {
+    env.SVN_SSH = "ssh -l $SVN_SSH_USER -i $SVN_SSH_KEY"
+    fn()
+  }
+}
+
 node {
   projectName = 'modsecurity'
-  svnRepo = "file:///repo/${projectName}"
-  upstreamVersion = 'v2.9.3'
-  isMasterBuild = env.BRANCH_NAME == (upstreamVersion + '-webscale')
-
-  stage('check') {
-  }
+  svnRepo = "svn+ssh://svn.webscalenetworks.com/repo/${projectName}"
+  upstreamVersion = 'v2.9.8'
+  isMainBuild = env.BRANCH_NAME == (upstreamVersion + '-webscale')
 
   /* Checks out the main source tree */
   stage('scm') {
@@ -21,57 +31,64 @@ node {
     deleteDir()
     checkout(scm)
 
-    /* Set a version number and a component for the debian repo.
-     * The version number is determined from the most recent tag. If
-     * a master build is being performed, create a tag and increment
-     * the webscale version number, and use a component of "main".
-     * If running a branch build, append a timestamp to the most
-     * recent tag and use a component of "test".
-     */
-    sh('git fetch --tags')
-    def last_tag = sh(
-      script: 'git describe --tags --abbrev=0',
-      returnStdout: true
-    )
-    echo('The last tag is ' + last_tag)
-    def m = (last_tag =~ ~/^${upstreamVersion}(?:-webscale(\d+))?$/)
-    m.find()
-    revision = (m.group(1) ?: '0').toInteger()
-    /* It is necessary to set the match var to null, since crossing a stage
-     * boundary will attempt to serialize it and it is not serializable.
-     */
-    m = null
-    if (isMasterBuild) {
-      if (sh(script: 'git rev-list -n 1 ' + last_tag, returnStdout: true)
-       != sh(script: 'git rev-list -n 1 HEAD', returnStdout: true)) {
-        version = upstreamVersion + '-webscale' + (revision + 1)
-        sh("git tag -f ${version}")
-        sh("git push -f origin tag ${version}")
+    withCredentials([
+      gitUsernamePassword(
+        credentialsId: 'webscalebuilder-token',
+        gitToolName: 'git-tool',
+      ),
+    ]) {
+      /* Set a version number and a component for the debian repo.
+       * The version number is determined from the most recent tag. If
+       * a master build is being performed, create a tag and increment
+       * the webscale version number, and use a component of "main".
+       * If running a branch build, append a timestamp to the most
+       * recent tag and use a component of "test".
+       */
+      sh('git fetch --tags')
+      def last_tag = sh(
+        script: 'git describe --tags --abbrev=0',
+        returnStdout: true
+      )
+      echo('The last tag is ' + last_tag)
+      def m = (last_tag =~ ~/^${upstreamVersion}(?:-webscale(\d+))?$/)
+      m.find()
+      revision = (m.group(1) ?: '0').toInteger()
+      /* It is necessary to set the match var to null, since crossing a stage
+       * boundary will attempt to serialize it and it is not serializable.
+       */
+      m = null
+      if (isMainBuild) {
+        if (sh(script: 'git rev-list -n 1 ' + last_tag, returnStdout: true)
+         != sh(script: 'git rev-list -n 1 HEAD', returnStdout: true)) {
+          version = upstreamVersion + '-webscale' + (revision + 1)
+          sh("git tag -f ${version}")
+          sh("git push -f origin tag ${version}")
+        }
+        svnLoc = "${svnRepo}/${version}"
+        if (svn { sh(script: "svn info ${svnLoc} 2>/dev/null", returnStatus: true) } == 0) {
+          error("${version} is already published and cannot be built again")
+        }
+      } else {
+        m = (env.BRANCH_NAME =~ ~/^${upstreamVersion}-webscale-(.+)$/)
+        if (!m.find()) {
+          error("Cannot decode branch name ${env.BRANCH_NAME}")
+        }
+        issueNumber = m.group(1)
+        m = null;
+        version = upstreamVersion + '-webscale' + revision +
+          new Date().format('-yyyyMMddHHmmss')
+        svnLoc = "${svnRepo}/${issueNumber}"
       }
-      svnLoc = "${svnRepo}/${version}"
-      if (sh(script: "svn info ${svnLoc} 2>/dev/null", returnStatus: true) == 0) {
-        error("${version} is already published and cannot be built again")
-      }
-    } else {
-      m = (env.BRANCH_NAME =~ ~/^${upstreamVersion}-webscale-(\d+)$/)
-      if (!m.find()) {
-        error("Cannot decode branch name ${env.BRANCH_NAME}")
-      }
-      issueNumber = m.group(1)
-      m = null;
-      version = upstreamVersion + '-webscale' + revision +
-        new Date().format('-yyyyMMddHHmmss')
-      svnLoc = "${svnRepo}/${issueNumber}"
+  
+      /* Set the build name and description to make it easy to identify
+       * from the list of jenkins jobs.
+       */
+      currentBuild.displayName = version
+      currentBuild.description = env.BRANCH_NAME + "<br>" + sh(
+        returnStdout: true,
+        script: 'git log "--pretty=format:%s (%an)" -1'
+      )
     }
-
-    /* Set the build name and description to make it easy to identify
-     * from the list of jenkins jobs.
-     */
-    currentBuild.displayName = version
-    currentBuild.description = env.BRANCH_NAME + "<br>" + sh(
-      returnStdout: true,
-      script: 'git log "--pretty=format:%s (%an)" -1'
-    )
   }
 
   /*
@@ -81,21 +98,24 @@ node {
    * libpam-google-authenticator.
    */
   stage('build') {
-    sh("./build.sh ${version}")
+    svn {
+      sh("./build.sh ${version}")
+    }
   }
 
   /*
    * Upload the result to subversion.
    */
   stage('publish') {
-    if (!isMasterBuild) {
-      sh(
-        script: "svn delete ${svnLoc} -m 'Delete ${upstreamVersion}/" +
-          "${issueNumber} for rebuild'",
-        returnStatus: true
-      )
+    svn {
+      if (!isMainBuild) {
+        sh(
+          script: "svn delete ${svnLoc} -m 'Delete ${upstreamVersion}/" +
+            "${issueNumber} for rebuild'",
+          returnStatus: true
+        )
+      }
+      sh("svn import --quiet --no-ignore -m 'Version ${version}' ${version} ${svnLoc}")
     }
-    sh("svn import --quiet --no-ignore -m 'Version ${version}' ${version} ${svnLoc}")
   }
 }
-

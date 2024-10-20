@@ -15,6 +15,7 @@
 #ifndef _UTIL_H_
 #define _UTIL_H_
 
+#include <assert.h>
 #include <sys/types.h>
 #include <apr_file_info.h>
 
@@ -164,10 +165,13 @@ int ip_tree_from_uri(TreeRoot **rtree, char *uri,
     apr_pool_t *mp, char **error_msg);
 #endif
 
+char DSOLOCAL *get_username(apr_pool_t* mp);
+const char* id_log(msre_rule* rule);
+
 int read_line(char *buff, int size, FILE *fp);
 
-size_t msc_curl_write_memory_cb(apr_pool_t *mp, void *contents, size_t size,
-    size_t nmemb, void *userp, char **error_msg);
+size_t msc_curl_write_memory_cb(void *contents, size_t size,
+    size_t nmemb, void *userp);
 
 struct msc_curl_memory_buffer_t
 {

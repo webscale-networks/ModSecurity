@@ -11,7 +11,8 @@ fi
 HTTPD=/usr/local/httpd-lg
 HTTPD_WS=$WORKSPACE/httpd$HTTPD
 
-SVN_BASE="file:///repo"
+env | grep SVN
+SVN_BASE="svn+ssh://svn.webscalenetworks.com/repo"
 svn co --quiet "$SVN_BASE/httpd/$HTTPD_VERSION" httpd
 
 # Update the apr and apu configuration scripts to reference the workspace.
