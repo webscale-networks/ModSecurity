@@ -18,6 +18,10 @@
 #include "apache2.h"
 #include "msc_crypt.h"
 
+#ifdef APLOG_USE_MODULE
+    APLOG_USE_MODULE(security2);
+#endif
+
 /* -- Input filter -- */
 
 #if 0
@@ -36,6 +40,7 @@ apr_status_t input_filter(ap_filter_t *f, apr_bucket_brigade *bb_out,
     msc_data_chunk *chunk = NULL;
     apr_bucket *bucket;
     apr_status_t rc;
+    int no_data = 1;
     char *my_error_msg = NULL;
 
     if (msr == NULL) {
@@ -85,10 +90,11 @@ apr_status_t input_filter(ap_filter_t *f, apr_bucket_brigade *bb_out,
         return APR_EGENERAL;
     }
 
-    if (chunk && (!msr->txcfg->stream_inbody_inspection || (msr->txcfg->stream_inbody_inspection && msr->if_stream_changed == 0))) {
-        /* Copy the data we received in the chunk */
-        bucket = apr_bucket_heap_create(chunk->data, chunk->length, NULL,
-                f->r->connection->bucket_alloc);
+    if (chunk && chunk->length > 0) {
+        if (chunk && (!msr->txcfg->stream_inbody_inspection || (msr->txcfg->stream_inbody_inspection && msr->if_stream_changed == 0))) {
+            /* Copy the data we received in the chunk */
+            bucket = apr_bucket_heap_create(chunk->data, chunk->length, NULL,
+                    f->r->connection->bucket_alloc);
 
 #if 0
 
@@ -107,33 +113,36 @@ apr_status_t input_filter(ap_filter_t *f, apr_bucket_brigade *bb_out,
 
 #endif
 
-        if (bucket == NULL) return APR_EGENERAL;
-        APR_BRIGADE_INSERT_TAIL(bb_out, bucket);
+            if (bucket == NULL) return APR_EGENERAL;
+            APR_BRIGADE_INSERT_TAIL(bb_out, bucket);
+            no_data = 0;
 
-        if (msr->txcfg->debuglog_level >= 4) {
-            msr_log(msr, 4, "Input filter: Forwarded %" APR_SIZE_T_FMT " bytes.", chunk->length);
-        }
-    } else if (msr->stream_input_data != NULL) {
-
-        msr->if_stream_changed = 0;
-
-        bucket = apr_bucket_heap_create(msr->stream_input_data, msr->stream_input_length, NULL,
-                f->r->connection->bucket_alloc);
-
-        if (msr->txcfg->stream_inbody_inspection)  {
-            if(msr->stream_input_data != NULL) {
-                free(msr->stream_input_data);
-                msr->stream_input_data = NULL;
+            if (msr->txcfg->debuglog_level >= 4) {
+                msr_log(msr, 4, "Input filter: Forwarded %" APR_SIZE_T_FMT " bytes.", chunk->length);
             }
+        } else if (msr->stream_input_data != NULL) {
+
+            msr->if_stream_changed = 0;
+
+            bucket = apr_bucket_heap_create(msr->stream_input_data, msr->stream_input_length, NULL,
+                    f->r->connection->bucket_alloc);
+
+            if (msr->txcfg->stream_inbody_inspection)  {
+                if(msr->stream_input_data != NULL) {
+                    free(msr->stream_input_data);
+                    msr->stream_input_data = NULL;
+                }
+            }
+
+            if (bucket == NULL) return APR_EGENERAL;
+            APR_BRIGADE_INSERT_TAIL(bb_out, bucket);
+            no_data = 0;
+
+            if (msr->txcfg->debuglog_level >= 4) {
+                msr_log(msr, 4, "Input stream filter: Forwarded %" APR_SIZE_T_FMT " bytes.", msr->stream_input_length);
+            }
+
         }
-
-        if (bucket == NULL) return APR_EGENERAL;
-        APR_BRIGADE_INSERT_TAIL(bb_out, bucket);
-
-        if (msr->txcfg->debuglog_level >= 4) {
-            msr_log(msr, 4, "Input stream filter: Forwarded %" APR_SIZE_T_FMT " bytes.", msr->stream_input_length);
-        }
-
     }
 
     if (rc == 0) {
@@ -143,6 +152,7 @@ apr_status_t input_filter(ap_filter_t *f, apr_bucket_brigade *bb_out,
             bucket = apr_bucket_eos_create(f->r->connection->bucket_alloc);
             if (bucket == NULL) return APR_EGENERAL;
             APR_BRIGADE_INSERT_TAIL(bb_out, bucket);
+            no_data = 0;
 
             if (msr->txcfg->debuglog_level >= 4) {
                 msr_log(msr, 4, "Input filter: Sent EOS.");
@@ -156,6 +166,10 @@ apr_status_t input_filter(ap_filter_t *f, apr_bucket_brigade *bb_out,
         if (msr->txcfg->debuglog_level >= 4) {
             msr_log(msr, 4, "Input filter: Input forwarding complete.");
         }
+
+        if (no_data) {
+            return ap_get_brigade(f->next, bb_out, mode, block, nbytes);
+        }
     }
 
     return APR_SUCCESS;
@@ -165,12 +179,13 @@ apr_status_t input_filter(ap_filter_t *f, apr_bucket_brigade *bb_out,
  * Reads request body from a client.
  */
 apr_status_t read_request_body(modsec_rec *msr, char **error_msg) {
+    assert(msr != NULL);
+    assert(error_msg!= NULL);
     request_rec *r = msr->r;
     unsigned int finished_reading;
     apr_bucket_brigade *bb_in;
     apr_bucket *bucket;
 
-    if (error_msg == NULL) return -1;
     *error_msg = NULL;
 
     if (msr->reqbody_should_exist != 1) {
@@ -190,7 +205,6 @@ apr_status_t read_request_body(modsec_rec *msr, char **error_msg) {
     if (msr->txcfg->debuglog_level >= 4) {
         msr_log(msr, 4, "Input filter: Reading request body.");
     }
-
     if (modsecurity_request_body_start(msr, error_msg) < 0) {
         return -1;
     }
@@ -281,8 +295,14 @@ apr_status_t read_request_body(modsec_rec *msr, char **error_msg) {
             }
 
             if (msr->txcfg->stream_inbody_inspection == 1)   {
+#ifndef MSC_LARGE_STREAM_INPUT
                 msr->stream_input_length+=buflen;
                 modsecurity_request_body_to_stream(msr, buf, buflen, error_msg);
+#else
+                if (modsecurity_request_body_to_stream(msr, buf, buflen, error_msg) < 0) {
+                    return -1;
+                }
+#endif
             }
 
             msr->reqbody_length += buflen;
@@ -328,8 +348,7 @@ apr_status_t read_request_body(modsec_rec *msr, char **error_msg) {
         apr_brigade_cleanup(bb_in);
     } while(!finished_reading);
 
-    // TODO: Why ignore the return code here?
-    modsecurity_request_body_end(msr, error_msg);
+    apr_status_t rcbe = modsecurity_request_body_end(msr, error_msg);
 
     if (msr->txcfg->debuglog_level >= 4) {
         msr_log(msr, 4, "Input filter: Completed receiving request body (length %" APR_SIZE_T_FMT ").",
@@ -338,7 +357,7 @@ apr_status_t read_request_body(modsec_rec *msr, char **error_msg) {
 
     msr->if_status = IF_STATUS_WANTS_TO_RUN;
 
-    return 1;
+    return rcbe;
 }
 
 
@@ -350,6 +369,8 @@ apr_status_t read_request_body(modsec_rec *msr, char **error_msg) {
  * run or not.
  */
 static int output_filter_should_run(modsec_rec *msr, request_rec *r) {
+    assert(msr != NULL);
+    assert(r != NULL);
     char *content_type = NULL;
 
     /* Check configuration. */
@@ -411,10 +432,13 @@ static int output_filter_should_run(modsec_rec *msr, request_rec *r) {
 static apr_status_t output_filter_init(modsec_rec *msr, ap_filter_t *f,
         apr_bucket_brigade *bb_in)
 {
+    assert(msr != NULL);
+    assert(f != NULL);
     request_rec *r = f->r;
     const char *s_content_length = NULL;
     apr_status_t rc;
 
+    assert(msr != NULL);
     msr->of_brigade = apr_brigade_create(msr->mp, f->c->bucket_alloc);
     if (msr->of_brigade == NULL) {
         msr_log(msr, 1, "Output filter: Failed to create brigade.");
@@ -478,6 +502,8 @@ static apr_status_t output_filter_init(modsec_rec *msr, ap_filter_t *f,
  * and to the client.
  */
 static apr_status_t send_of_brigade(modsec_rec *msr, ap_filter_t *f) {
+    assert(msr != NULL);
+    assert(f != NULL);
     apr_status_t rc;
 
     rc = ap_pass_brigade(f->next, msr->of_brigade);
@@ -519,6 +545,8 @@ static apr_status_t send_of_brigade(modsec_rec *msr, ap_filter_t *f) {
  *
  */
 static void inject_content_to_of_brigade(modsec_rec *msr, ap_filter_t *f) {
+    assert(msr != NULL);
+    assert(f != NULL);
     apr_bucket *b;
 
     if (msr->txcfg->content_injection_enabled && msr->stream_output_data != NULL) {
@@ -545,6 +573,8 @@ static void inject_content_to_of_brigade(modsec_rec *msr, ap_filter_t *f) {
  *
  */
 static void prepend_content_to_of_brigade(modsec_rec *msr, ap_filter_t *f) {
+    assert(msr != NULL);
+    assert(f != NULL);
     if ((msr->txcfg->content_injection_enabled) && (msr->content_prepend) && (!msr->of_skipping)) {
         apr_bucket *bucket_ci = NULL;
 
@@ -599,7 +629,6 @@ static int flatten_response_body(modsec_rec *msr) {
             return -1;
         }
 
-        memset(msr->stream_output_data, 0, msr->stream_output_length+1);
         memcpy(msr->stream_output_data, msr->resbody_data, msr->stream_output_length);
         msr->stream_output_data[msr->stream_output_length] = '\0';
     } else if (msr->txcfg->stream_outbody_inspection && msr->txcfg->hash_is_enabled == HASH_ENABLED)    {
@@ -632,7 +661,6 @@ static int flatten_response_body(modsec_rec *msr) {
                 return -1;
             }
 
-            memset(msr->stream_output_data, 0, msr->stream_output_length+1);
             memcpy(msr->stream_output_data, msr->resbody_data, msr->stream_output_length);
             msr->stream_output_data[msr->stream_output_length] = '\0';
         }
@@ -990,6 +1018,12 @@ apr_status_t output_filter(ap_filter_t *f, apr_bucket_brigade *bb_in) {
     /* Now send data down the filter stream
      * (full-buffering only).
      */
+    if (!eos_bucket) {
+        ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_NOERRNO, 0, f->r->server,
+            "ModSecurity: Internal Error: eos_bucket is NULL.");
+        return APR_EGENERAL;
+    }
+
     if ((msr->of_skipping == 0)&&(!msr->of_partial)) {
         if(msr->of_stream_changed == 1) {
             inject_content_to_of_brigade(msr,f);

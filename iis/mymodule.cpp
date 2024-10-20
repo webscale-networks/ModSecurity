@@ -32,6 +32,7 @@
 
 #include "winsock2.h"
 
+
 class REQUEST_STORED_CONTEXT : public IHttpStoredContext
 {
  public:
@@ -83,6 +84,7 @@ class REQUEST_STORED_CONTEXT : public IHttpStoredContext
 	ULONGLONG			m_pResponseLength;
 	ULONGLONG			m_pResponsePosition;
 };
+
 
 //----------------------------------------------------------------------------
 
@@ -285,6 +287,7 @@ REQUEST_STORED_CONTEXT *RetrieveIISContext(request_rec *r)
 
     return NULL;
 }
+
 
 HRESULT CMyHttpModule::ReadFileChunk(HTTP_DATA_CHUNK *chunk, char *buf)
 {
@@ -752,11 +755,7 @@ CMyHttpModule::OnBeginRequest(
         goto Finished;
 	}
 
-	// every 3 seconds we check for changes in config file
-	//
-	DWORD ctime = GetTickCount();
-
-	if(pConfig->m_Config == NULL || (ctime - pConfig->m_dwLastCheck) > 3000)
+	if(pConfig->m_Config == NULL)
 	{
 		char *path;
 		USHORT pathlen;
@@ -769,55 +768,42 @@ CMyHttpModule::OnBeginRequest(
 			goto Finished;
 		}
 
-		WIN32_FILE_ATTRIBUTE_DATA fdata;
-		BOOL ret;
+		pConfig->m_Config = modsecGetDefaultConfig();
 
-		ret = GetFileAttributesEx(path, GetFileExInfoStandard, &fdata);
+		PCWSTR servpath = pHttpContext->GetApplication()->GetApplicationPhysicalPath();
+		char *apppath;
+		USHORT apppathlen;
 
-		pConfig->m_dwLastCheck = ctime;
+		hr = pConfig->GlobalWideCharToMultiByte((WCHAR *)servpath, wcslen(servpath), &apppath, &apppathlen);
 
-		if(pConfig->m_Config == NULL || (ret != 0 && (pConfig->m_LastChange.dwLowDateTime != fdata.ftLastWriteTime.dwLowDateTime ||
-			pConfig->m_LastChange.dwHighDateTime != fdata.ftLastWriteTime.dwHighDateTime)))
+		if ( FAILED( hr ) )
 		{
-			pConfig->m_LastChange.dwLowDateTime = fdata.ftLastWriteTime.dwLowDateTime;
-			pConfig->m_LastChange.dwHighDateTime = fdata.ftLastWriteTime.dwHighDateTime;
+			delete path;
+			hr = E_UNEXPECTED;
+			goto Finished;
+		}
 
-			pConfig->m_Config = modsecGetDefaultConfig();
+		if(path[0] != 0)
+		{
+			const char * err = modsecProcessConfig((directory_config *)pConfig->m_Config, path, apppath);
 
-			PCWSTR servpath = pHttpContext->GetApplication()->GetApplicationPhysicalPath();
-			char *apppath;
-			USHORT apppathlen;
-
-			hr = pConfig->GlobalWideCharToMultiByte((WCHAR *)servpath, wcslen(servpath), &apppath, &apppathlen);
-
-			if ( FAILED( hr ) )
+			if(err != NULL)
 			{
+				WriteEventViewerLog(err, EVENTLOG_ERROR_TYPE);
+				delete apppath;
 				delete path;
-				hr = E_UNEXPECTED;
 				goto Finished;
 			}
 
-			if(path[0] != 0)
+			modsecReportRemoteLoadedRules();
+			if (this->status_call_already_sent == false)
 			{
-				const char * err = modsecProcessConfig((directory_config *)pConfig->m_Config, path, apppath);
-
-				if(err != NULL)
-				{
-					WriteEventViewerLog(err, EVENTLOG_ERROR_TYPE);
-					delete apppath;
-					delete path;
-					goto Finished;
-				}
-
-				modsecReportRemoteLoadedRules();
-				if (this->status_call_already_sent == false)
-				{
-					this->status_call_already_sent = true;
-					modsecStatusEngineCall();
-				}
+				this->status_call_already_sent = true;
+				modsecStatusEngineCall();
 			}
-			delete apppath;
 		}
+
+		delete apppath;
 		delete path;
 	}
 
@@ -1072,7 +1058,9 @@ CMyHttpModule::OnBeginRequest(
 #endif
 	c->remote_host = NULL;
 
+    LeaveCriticalSection(&m_csLock);
 	int status = modsecProcessRequest(r);
+    EnterCriticalSection(&m_csLock);
 
 	if(status != DECLINED)
 	{
@@ -1093,42 +1081,43 @@ Finished:
 	return RQ_NOTIFICATION_CONTINUE;
 }
 
+
 apr_status_t ReadBodyCallback(request_rec *r, char *buf, unsigned int length, unsigned int *readcnt, int *is_eos)
 {
-	REQUEST_STORED_CONTEXT *rsc = RetrieveIISContext(r);
+    REQUEST_STORED_CONTEXT *rsc = RetrieveIISContext(r);
 
-	*readcnt = 0;
+    *readcnt = 0;
 
-	if(rsc == NULL)
-	{
-		*is_eos = 1;
-		return APR_SUCCESS;
-	}
-
-	IHttpContext *pHttpContext = rsc->m_pHttpContext;
-	IHttpRequest *pRequest = pHttpContext->GetRequest();
-
-	if(pRequest->GetRemainingEntityBytes() == 0)
-	{
-		*is_eos = 1;
-		return APR_SUCCESS;
-	}
-
-	HRESULT hr = pRequest->ReadEntityBody(buf, length, false, (DWORD *)readcnt, NULL);
-
-	if (FAILED(hr))
+    if (rsc == NULL)
     {
-        // End of data is okay.
-        if (ERROR_HANDLE_EOF != (hr  & 0x0000FFFF))
-        {
-            // Set the error status.
-            rsc->m_pProvider->SetErrorStatus( hr );
-        }
-
-		*is_eos = 1;
+        *is_eos = 1;
+        return APR_SUCCESS;
     }
 
-	return APR_SUCCESS;
+    IHttpContext *pHttpContext = rsc->m_pHttpContext;
+    IHttpRequest *pRequest = pHttpContext->GetRequest();
+
+    if (pRequest->GetRemainingEntityBytes() == 0)
+    {
+        *is_eos = 1;
+        return APR_SUCCESS;
+    }
+
+    HRESULT hr = pRequest->ReadEntityBody(buf, length, false, (DWORD *)readcnt, NULL);
+
+    if (FAILED(hr))
+    {
+        // End of data is okay.
+        if (ERROR_HANDLE_EOF != (hr & 0x0000FFFF))
+        {
+            // Set the error status.
+            rsc->m_pProvider->SetErrorStatus(hr);
+        }
+
+        *is_eos = 1;
+    }
+
+    return APR_SUCCESS;
 }
 
 apr_status_t WriteBodyCallback(request_rec *r, char *buf, unsigned int length)

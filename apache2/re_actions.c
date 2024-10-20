@@ -27,6 +27,8 @@ static void msre_engine_action_register(msre_engine *engine, const char *name,
     unsigned int cardinality_group, fn_action_validate_t validate,
     fn_action_init_t init, fn_action_execute_t execute)
 {
+    assert(engine != NULL);
+    assert(name != NULL);
     msre_action_metadata *metadata = (msre_action_metadata *)apr_pcalloc(engine->mp,
         sizeof(msre_action_metadata));
     if (metadata == NULL) return;
@@ -51,6 +53,7 @@ static void msre_engine_action_register(msre_engine *engine, const char *name,
 msre_var *generate_single_var(modsec_rec *msr, msre_var *var, apr_array_header_t *tfn_arr,
     msre_rule *rule, apr_pool_t *mptmp)
 {
+    assert(msr != NULL);
     apr_table_t *vartab = NULL;
     const apr_table_entry_t *te = NULL;
     const apr_array_header_t *arr = NULL;
@@ -92,6 +95,8 @@ msre_var *generate_single_var(modsec_rec *msr, msre_var *var, apr_array_header_t
         rvar->value = rval;
         rvar->value_len = rval_len;
 
+        assert(msr != NULL);
+        assert(msr->txcfg != NULL);
         if (msr->txcfg->debuglog_level >= 9) {
             msr_log(msr, 9, "T (%d) %s: \"%s\"", rc, tfn->name,
                 log_escape_nq_ex(mptmp, rvar->value, rvar->value_len));
@@ -108,6 +113,7 @@ msre_var *generate_single_var(modsec_rec *msr, msre_var *var, apr_array_header_t
 apr_table_t *generate_multi_var(modsec_rec *msr, msre_var *var, apr_array_header_t *tfn_arr,
     msre_rule *rule, apr_pool_t *mptmp)
 {
+    assert(msr != NULL);
     const apr_array_header_t *tarr;
     const apr_table_entry_t *telts;
     apr_table_t *vartab = NULL, *tvartab = NULL;
@@ -169,6 +175,9 @@ apr_table_t *generate_multi_var(modsec_rec *msr, msre_var *var, apr_array_header
  * in the given variable.
  */
 int expand_macros(modsec_rec *msr, msc_string *var, msre_rule *rule, apr_pool_t *mptmp) {
+    assert(msr != NULL);
+    assert(msr->txcfg != NULL);
+    assert(var != NULL);
     char *data = NULL;
     apr_array_header_t *arr = NULL;
     char *p = NULL, *q = NULL, *t = NULL;
@@ -316,6 +325,8 @@ int expand_macros(modsec_rec *msr, msc_string *var, msre_rule *rule, apr_pool_t 
  * value that is set.
  */
 apr_status_t collection_original_setvar(modsec_rec *msr, const char *col_name, const msc_string *orig_var) {
+    assert(msr != NULL);
+    assert(msr->txcfg != NULL);
     apr_table_t *table = NULL;
     msc_string *var = NULL;
     const char *var_name = NULL;
@@ -374,6 +385,8 @@ apr_status_t collection_original_setvar(modsec_rec *msr, const char *col_name, c
 static apr_status_t msre_action_marker_init(msre_engine *engine, apr_pool_t *mp, msre_actionset *actionset,
     msre_action *action)
 {
+    assert(actionset != NULL);
+    assert(action != NULL);
     actionset->id = action->param;
     return 1;
 }
@@ -383,6 +396,8 @@ static apr_status_t msre_action_marker_init(msre_engine *engine, apr_pool_t *mp,
 static apr_status_t msre_action_id_init(msre_engine *engine, apr_pool_t *mp, msre_actionset *actionset,
     msre_action *action)
 {
+    assert(actionset != NULL);
+    assert(action != NULL);
     actionset->id = action->param;
     return 1;
 }
@@ -409,6 +424,8 @@ static char *msre_action_id_validate(msre_engine *engine, apr_pool_t *mp, msre_a
 static apr_status_t msre_action_rev_init(msre_engine *engine, apr_pool_t *mp, msre_actionset *actionset,
         msre_action *action)
 {
+    assert(actionset != NULL);
+    assert(action != NULL);
     actionset->rev = action->param;
     return 1;
 }
@@ -418,6 +435,8 @@ static apr_status_t msre_action_rev_init(msre_engine *engine, apr_pool_t *mp, ms
 static apr_status_t msre_action_msg_init(msre_engine *engine, apr_pool_t *mp, msre_actionset *actionset,
     msre_action *action)
 {
+    assert(actionset != NULL);
+    assert(action != NULL);
     actionset->msg = action->param;
     return 1;
 }
@@ -427,6 +446,8 @@ static apr_status_t msre_action_msg_init(msre_engine *engine, apr_pool_t *mp, ms
 static apr_status_t msre_action_logdata_init(msre_engine *engine, apr_pool_t *mp, msre_actionset *actionset,
     msre_action *action)
 {
+    assert(actionset != NULL);
+    assert(action != NULL);
     actionset->logdata = action->param;
     return 1;
 }
@@ -436,6 +457,8 @@ static apr_status_t msre_action_logdata_init(msre_engine *engine, apr_pool_t *mp
 static apr_status_t msre_action_sanitizeMatchedBytes_init(msre_engine *engine, apr_pool_t *mp,
         msre_actionset *actionset, msre_action *action)
 {
+    assert(actionset != NULL);
+    assert(action != NULL);
     char *parse_parm = NULL;
     char *ac_param = NULL;
     char *savedptr = NULL;
@@ -464,6 +487,8 @@ static apr_status_t msre_action_sanitizeMatchedBytes_init(msre_engine *engine, a
 static apr_status_t msre_action_accuracy_init(msre_engine *engine, apr_pool_t *mp,
     msre_actionset *actionset, msre_action *action)
 {
+    assert(actionset != NULL);
+    assert(action != NULL);
     actionset->accuracy = atoi(action->param);
     return 1;
 }
@@ -473,6 +498,8 @@ static apr_status_t msre_action_accuracy_init(msre_engine *engine, apr_pool_t *m
 static apr_status_t msre_action_maturity_init(msre_engine *engine, apr_pool_t *mp,
     msre_actionset *actionset, msre_action *action)
 {
+    assert(actionset != NULL);
+    assert(action != NULL);
     actionset->maturity = atoi(action->param);
     return 1;
 }
@@ -482,6 +509,8 @@ static apr_status_t msre_action_maturity_init(msre_engine *engine, apr_pool_t *m
 static apr_status_t msre_action_ver_init(msre_engine *engine, apr_pool_t *mp,
     msre_actionset *actionset, msre_action *action)
 {
+    assert(actionset != NULL);
+    assert(action != NULL);
     actionset->version = action->param;
     return 1;
 }
@@ -491,6 +520,8 @@ static apr_status_t msre_action_ver_init(msre_engine *engine, apr_pool_t *mp,
 static apr_status_t msre_action_severity_init(msre_engine *engine, apr_pool_t *mp,
         msre_actionset *actionset, msre_action *action)
 {
+    assert(actionset != NULL);
+    assert(action != NULL);
     if (strcasecmp(action->param, "emergency") == 0)    {
         actionset->severity = 0;
     } else if (strcasecmp(action->param, "alert") == 0) {
@@ -518,6 +549,7 @@ static apr_status_t msre_action_severity_init(msre_engine *engine, apr_pool_t *m
 static apr_status_t msre_action_chain_init(msre_engine *engine, apr_pool_t *mp, msre_actionset *actionset,
     msre_action *action)
 {
+    assert(actionset != NULL);
     actionset->is_chained = 1;
     return 1;
 }
@@ -526,6 +558,7 @@ static apr_status_t msre_action_chain_init(msre_engine *engine, apr_pool_t *mp, 
 static apr_status_t msre_action_log_init(msre_engine *engine, apr_pool_t *mp, msre_actionset *actionset,
     msre_action *action)
 {
+    assert(actionset != NULL);
     actionset->log = 1;
     return 1;
 }
@@ -534,6 +567,7 @@ static apr_status_t msre_action_log_init(msre_engine *engine, apr_pool_t *mp, ms
 static apr_status_t msre_action_nolog_init(msre_engine *engine, apr_pool_t *mp, msre_actionset *actionset,
     msre_action *action)
 {
+    assert(actionset != NULL);
     actionset->log = 0;
     actionset->auditlog = 0;
     return 1;
@@ -543,6 +577,7 @@ static apr_status_t msre_action_nolog_init(msre_engine *engine, apr_pool_t *mp, 
 static apr_status_t msre_action_auditlog_init(msre_engine *engine, apr_pool_t *mp, msre_actionset *actionset,
     msre_action *action)
 {
+    assert(actionset != NULL);
     actionset->auditlog = 1;
     return 1;
 }
@@ -551,6 +586,7 @@ static apr_status_t msre_action_auditlog_init(msre_engine *engine, apr_pool_t *m
 static apr_status_t msre_action_noauditlog_init(msre_engine *engine, apr_pool_t *mp, msre_actionset *actionset,
     msre_action *action)
 {
+    assert(actionset != NULL);
     actionset->auditlog = 0;
     return 1;
 }
@@ -559,6 +595,7 @@ static apr_status_t msre_action_noauditlog_init(msre_engine *engine, apr_pool_t 
 static apr_status_t msre_action_block_init(msre_engine *engine, apr_pool_t *mp, msre_actionset *actionset,
     msre_action *action)
 {
+    assert(actionset != NULL);
     /* Right now we just set a flag and inherit the real disruptive action */
     actionset->block = 1;
     return 1;
@@ -568,6 +605,7 @@ static apr_status_t msre_action_block_init(msre_engine *engine, apr_pool_t *mp, 
 static apr_status_t msre_action_deny_init(msre_engine *engine, apr_pool_t *mp, msre_actionset *actionset,
     msre_action *action)
 {
+    assert(actionset != NULL);
     actionset->intercept_action = ACTION_DENY;
     actionset->intercept_action_rec = action;
     return 1;
@@ -582,6 +620,8 @@ static char *msre_action_status_validate(msre_engine *engine, apr_pool_t *mp, ms
 static apr_status_t msre_action_status_init(msre_engine *engine, apr_pool_t *mp, msre_actionset *actionset,
     msre_action *action)
 {
+    assert(actionset != NULL);
+    assert(action != NULL);
     actionset->intercept_status = atoi(action->param);
     return 1;
 }
@@ -590,6 +630,8 @@ static apr_status_t msre_action_status_init(msre_engine *engine, apr_pool_t *mp,
 static apr_status_t msre_action_drop_init(msre_engine *engine, apr_pool_t *mp, msre_actionset *actionset,
     msre_action *action)
 {
+    assert(actionset != NULL);
+    assert(action != NULL);
     actionset->intercept_action = ACTION_DROP;
     actionset->intercept_action_rec = action;
     return 1;
@@ -604,6 +646,8 @@ static char *msre_action_pause_validate(msre_engine *engine, apr_pool_t *mp, msr
 static apr_status_t msre_action_pause_init(msre_engine *engine, apr_pool_t *mp, msre_actionset *actionset,
     msre_action *action)
 {
+    assert(actionset != NULL);
+    assert(action != NULL);
     actionset->intercept_action = ACTION_PAUSE;
     actionset->intercept_pause = action->param;
     return 1;
@@ -619,6 +663,8 @@ static char *msre_action_redirect_validate(msre_engine *engine, apr_pool_t *mp, 
 static apr_status_t msre_action_redirect_init(msre_engine *engine, apr_pool_t *mp, msre_actionset *actionset,
     msre_action *action)
 {
+    assert(actionset != NULL);
+    assert(action != NULL);
     actionset->intercept_action = ACTION_REDIRECT;
     actionset->intercept_uri = action->param;
     actionset->intercept_action_rec = action;
@@ -628,6 +674,10 @@ static apr_status_t msre_action_redirect_init(msre_engine *engine, apr_pool_t *m
 static apr_status_t msre_action_redirect_execute(modsec_rec *msr, apr_pool_t *mptmp,
     msre_rule *rule, msre_action *action)
 {
+    assert(msr != NULL);
+    assert(rule != NULL);
+    assert(rule->actionset != NULL);
+    assert(action != NULL);
     msc_string *var = NULL;
 
     var = apr_pcalloc(mptmp, sizeof(msc_string));
@@ -651,6 +701,8 @@ static char *msre_action_proxy_validate(msre_engine *engine, apr_pool_t *mp, msr
 static apr_status_t msre_action_proxy_init(msre_engine *engine, apr_pool_t *mp, msre_actionset *actionset,
         msre_action *action)
 {
+    assert(actionset != NULL);
+    assert(action != NULL);
     actionset->intercept_action = ACTION_PROXY;
     actionset->intercept_uri = action->param;
     actionset->intercept_action_rec = action;
@@ -660,6 +712,9 @@ static apr_status_t msre_action_proxy_init(msre_engine *engine, apr_pool_t *mp, 
 static apr_status_t msre_action_proxy_execute(modsec_rec *msr, apr_pool_t *mptmp,
         msre_rule *rule, msre_action *action)
 {
+    assert(msr != NULL);
+    assert(rule != NULL);
+    assert(action != NULL);
     msc_string *var = NULL;
 
     var = apr_pcalloc(mptmp, sizeof(msc_string));
@@ -683,6 +738,8 @@ static apr_status_t msre_action_proxy_execute(modsec_rec *msr, apr_pool_t *mptmp
 static apr_status_t msre_action_pass_init(msre_engine *engine, apr_pool_t *mp, msre_actionset *actionset,
         msre_action *action)
 {
+    assert(actionset != NULL);
+    assert(action != NULL);
     actionset->intercept_action = ACTION_NONE;
     actionset->intercept_action_rec = action;
     return 1;
@@ -698,6 +755,8 @@ static char *msre_action_skip_validate(msre_engine *engine, apr_pool_t *mp, msre
 static apr_status_t msre_action_skip_init(msre_engine *engine, apr_pool_t *mp, msre_actionset *actionset,
         msre_action *action)
 {
+    assert(actionset != NULL);
+    assert(action != NULL);
     actionset->skip_count = atoi(action->param);
     if (actionset->skip_count <= 0) actionset->skip_count = 1;
     return 1;
@@ -713,6 +772,8 @@ static char *msre_action_skipAfter_validate(msre_engine *engine, apr_pool_t *mp,
 static apr_status_t msre_action_skipAfter_init(msre_engine *engine, apr_pool_t *mp, msre_actionset *actionset,
         msre_action *action)
 {
+    assert(actionset != NULL);
+    assert(action != NULL);
     actionset->skip_after = action->param;
     return 1;
 }
@@ -722,6 +783,8 @@ static apr_status_t msre_action_skipAfter_init(msre_engine *engine, apr_pool_t *
 static apr_status_t msre_action_allow_init(msre_engine *engine, apr_pool_t *mp, msre_actionset *actionset,
     msre_action *action)
 {
+    assert(actionset != NULL);
+    assert(action != NULL);
     actionset->intercept_action = ACTION_ALLOW;
     actionset->intercept_action_rec = action;
 
@@ -738,6 +801,7 @@ static apr_status_t msre_action_allow_init(msre_engine *engine, apr_pool_t *mp, 
 }
 
 static char *msre_action_allow_validate(msre_engine *engine, apr_pool_t *mp, msre_action *action) {
+    assert(action != NULL);
     if (action->param != NULL) {
         if (strcasecmp(action->param, "phase") == 0) {
             return NULL;
@@ -762,6 +826,8 @@ static char *msre_action_phase_validate(msre_engine *engine, apr_pool_t *mp, msr
 static apr_status_t msre_action_phase_init(msre_engine *engine, apr_pool_t *mp, msre_actionset *actionset,
     msre_action *action)
 {
+    assert(actionset != NULL);
+    assert(action != NULL);
     if(strcasecmp(action->param,"request") == 0)
         actionset->phase = 2;
     else if(strcasecmp(action->param,"response") == 0)
@@ -777,6 +843,7 @@ static apr_status_t msre_action_phase_init(msre_engine *engine, apr_pool_t *mp, 
 /* t */
 
 static char *msre_action_t_validate(msre_engine *engine, apr_pool_t *mp, msre_action *action) {
+    assert(action != NULL);
     msre_tfn_metadata *metadata = NULL;
     metadata = msre_engine_tfn_resolve(engine, action->param);
     if (metadata == NULL) return apr_psprintf(mp, "Invalid transformation function: %s",
@@ -788,6 +855,7 @@ static char *msre_action_t_validate(msre_engine *engine, apr_pool_t *mp, msre_ac
 static apr_status_t msre_action_t_init(msre_engine *engine, apr_pool_t *mp, msre_actionset *actionset,
     msre_action *action)
 {
+    assert(action != NULL);
     msre_tfn_metadata *metadata = (msre_tfn_metadata *)action->param_data;
     action->param_data = metadata;
     return 1;
@@ -795,6 +863,7 @@ static apr_status_t msre_action_t_init(msre_engine *engine, apr_pool_t *mp, msre
 
 /* ctl */
 static char *msre_action_ctl_validate(msre_engine *engine, apr_pool_t *mp, msre_action *action) {
+    assert(action != NULL);
     char *name = NULL;
     char *value = NULL;
 
@@ -968,6 +1037,8 @@ static apr_status_t msre_action_ctl_init(msre_engine *engine, apr_pool_t *mp, ms
 static apr_status_t msre_action_ctl_execute(modsec_rec *msr, apr_pool_t *mptmp,
     msre_rule *rule, msre_action *action)
 {
+    assert(msr != NULL);
+    assert(action != NULL);
     char *name = NULL;
     char *value = NULL;
 
@@ -1235,11 +1306,24 @@ static apr_status_t msre_action_ctl_execute(modsec_rec *msr, apr_pool_t *mptmp,
         if (msr->txcfg->debuglog_level >= 4) {
             msr_log(msr, 4, "Ctl: ruleRemoveTargetById id=%s targets=%s", p1, p2);
         }
-    re = apr_pcalloc(msr->mp, sizeof(rule_exception));
-    re->type = RULE_EXCEPTION_REMOVE_ID;
-    re->param = (const char *)apr_pstrdup(msr->mp, p1);
-    apr_table_addn(msr->removed_targets, apr_pstrdup(msr->mp, p2), (void *)re);
-    return 1;
+        if (p2 == NULL) {
+            msr_log(msr, 1, "Ctl: ruleRemoveTargetById: Missing target for id \"%s\"", p1);
+            return -1;
+        }
+
+        re = apr_pcalloc(msr->mp, sizeof(rule_exception));
+        if (re == NULL) {
+            msr_log(msr, 1, "Ctl: Memory allocation error");
+            return -1;
+        }
+        re->type = RULE_EXCEPTION_REMOVE_ID;
+        re->param = (const char *)apr_pstrdup(msr->mp, p1);
+        if (re->param == NULL) {
+            msr_log(msr, 1, "Ctl: Memory allocation error");
+            return -1;
+        }
+        apr_table_addn(msr->removed_targets, apr_pstrdup(msr->mp, p2), (void *)re);
+        return 1;
     } else
     if (strcasecmp(name, "ruleRemoveTargetByTag") == 0)  {
         rule_exception *re = NULL;
@@ -1247,27 +1331,26 @@ static apr_status_t msre_action_ctl_execute(modsec_rec *msr, apr_pool_t *mptmp,
         char *savedptr = NULL;
 
         p1 = apr_strtok(value,";",&savedptr);
-
         p2 = apr_strtok(NULL,";",&savedptr);
 
         if (msr->txcfg->debuglog_level >= 4) {
             msr_log(msr, 4, "Ctl: ruleRemoveTargetByTag tag=%s targets=%s", p1, p2);
         }
-	if (p2 == NULL) {
+        if (p2 == NULL) {
             msr_log(msr, 1, "ModSecurity: Missing target for tag \"%s\"", p1);
-	    return -1;
-	}
+            return -1;
+        }
 
-    re = apr_pcalloc(msr->mp, sizeof(rule_exception));
-    re->type = RULE_EXCEPTION_REMOVE_TAG;
-    re->param = (const char *)apr_pstrdup(msr->mp, p1);
-    re->param_data = msc_pregcomp(msr->mp, p1, 0, NULL, NULL);
-    if (re->param_data == NULL) {
-        msr_log(msr, 1, "ModSecurity: Invalid regular expression \"%s\"", p1);
-        return -1;
-    }
-    apr_table_addn(msr->removed_targets, apr_pstrdup(msr->mp, p2), (void *)re);
-    return 1;
+        re = apr_pcalloc(msr->mp, sizeof(rule_exception));
+        re->type = RULE_EXCEPTION_REMOVE_TAG;
+        re->param = (const char *)apr_pstrdup(msr->mp, p1);
+        re->param_data = msc_pregcomp(msr->mp, p1, 0, NULL, NULL);
+        if (re->param_data == NULL) {
+            msr_log(msr, 1, "ModSecurity: Invalid regular expression \"%s\"", p1);
+            return -1;
+        }
+        apr_table_addn(msr->removed_targets, apr_pstrdup(msr->mp, p2), (void *)re);
+        return 1;
     } else
     if (strcasecmp(name, "ruleRemoveTargetByMsg") == 0)  {
         rule_exception *re = NULL;
@@ -1275,35 +1358,36 @@ static apr_status_t msre_action_ctl_execute(modsec_rec *msr, apr_pool_t *mptmp,
         char *savedptr = NULL;
 
         p1 = apr_strtok(value,";",&savedptr);
-
         p2 = apr_strtok(NULL,";",&savedptr);
 
         if (msr->txcfg->debuglog_level >= 4) {
             msr_log(msr, 4, "Ctl: ruleRemoveTargetByMsg msg=%s targets=%s", p1, p2);
         }
+        if (p2 == NULL) {
+            msr_log(msr, 1, "ModSecurity: Missing target for msg \"%s\"", p1);
+            return -1;
+        }
 
-    re = apr_pcalloc(msr->mp, sizeof(rule_exception));
-    re->type = RULE_EXCEPTION_REMOVE_MSG;
-    re->param = apr_pstrdup(msr->mp, p1);
-    re->param_data = msc_pregcomp(msr->mp, p1, 0, NULL, NULL);
-    if (re->param_data == NULL) {
-        msr_log(msr, 1, "ModSecurity: Invalid regular expression \"%s\"", p1);
-        return -1;
-    }
-    apr_table_addn(msr->removed_targets, apr_pstrdup(msr->mp, p2), (void *)re);
-    return 1;
-    }
-    else {
-        /* Should never happen, but log if it does. */
-        msr_log(msr, 1, "Internal Error: Unknown ctl action \"%s\".", name);
-        return -1;
+        re = apr_pcalloc(msr->mp, sizeof(rule_exception));
+        re->type = RULE_EXCEPTION_REMOVE_MSG;
+        re->param = apr_pstrdup(msr->mp, p1);
+        re->param_data = msc_pregcomp(msr->mp, p1, 0, NULL, NULL);
+        if (re->param_data == NULL) {
+            msr_log(msr, 1, "ModSecurity: Invalid regular expression \"%s\"", p1);
+            return -1;
+        }
+        apr_table_addn(msr->removed_targets, apr_pstrdup(msr->mp, p2), (void *)re);
+        return 1;
     }
 
+    /* Should never happen, but log if it does. */
+    msr_log(msr, 1, "Internal Error: Unknown ctl action \"%s\".", name);
     return -1;
 }
 
 /* xmlns */
 static char *msre_action_xmlns_validate(msre_engine *engine, apr_pool_t *mp, msre_action *action) {
+    assert(action != NULL);
     char *name = NULL;
     char *value = NULL;
 
@@ -1327,6 +1411,8 @@ static char *msre_action_xmlns_validate(msre_engine *engine, apr_pool_t *mp, msr
 static apr_status_t msre_action_sanitizeArg_execute(modsec_rec *msr, apr_pool_t *mptmp,
     msre_rule *rule, msre_action *action)
 {
+    assert(msr != NULL);
+    assert(action != NULL);
     const char *sargname = NULL;
     const apr_array_header_t *tarr;
     const apr_table_entry_t *telts;
@@ -1355,17 +1441,21 @@ static apr_status_t msre_action_sanitizeArg_execute(modsec_rec *msr, apr_pool_t 
 static apr_status_t msre_action_sanitizeMatched_execute(modsec_rec *msr, apr_pool_t *mptmp,
     msre_rule *rule, msre_action *action)
 {
+    assert(msr != NULL);
+    assert(action != NULL);
     const char *sargname = NULL;
     const apr_array_header_t *tarr;
     const apr_table_entry_t *telts;
     int i, type = 0;
     msc_string *mvar = msr->matched_var;
+    assert(mvar != NULL);
 
     if (mvar->name_len == 0) return 0;
 
     /* IMP1 We need to extract the variable name properly here,
      *      taking into account it may have been escaped.
      */
+    assert(mvar->name != NULL);
     if ((mvar->name_len > 5) && (strncmp(mvar->name, "ARGS:", 5) == 0)) {
         sargname = apr_pstrdup(msr->mp, mvar->name + 5);
         type = SANITISE_ARG;
@@ -1400,10 +1490,13 @@ static apr_status_t msre_action_sanitizeMatched_execute(modsec_rec *msr, apr_poo
 
     switch(type) {
         case SANITISE_ARG :
+            assert(msr->arguments_to_sanitize != NULL);
             tarr = apr_table_elts(msr->arguments);
+            assert(tarr != NULL);
             telts = (const apr_table_entry_t*)tarr->elts;
             for (i = 0; i < tarr->nelts; i++) {
                 msc_arg *arg = (msc_arg *)telts[i].val;
+                assert(arg != NULL);
                 if (strcasecmp(sargname, arg->name) == 0) {
                     apr_table_addn(msr->arguments_to_sanitize, arg->name, (void *)arg);
                 }
@@ -1411,10 +1504,12 @@ static apr_status_t msre_action_sanitizeMatched_execute(modsec_rec *msr, apr_poo
             break;
 
         case SANITISE_REQUEST_HEADER :
+            assert(msr->request_headers_to_sanitize != NULL);
             apr_table_set(msr->request_headers_to_sanitize, sargname, "1");
             break;
 
         case SANITISE_RESPONSE_HEADER :
+            assert(msr->response_headers_to_sanitize != NULL);
             apr_table_set(msr->response_headers_to_sanitize, sargname, "1");
             break;
 
@@ -1430,6 +1525,10 @@ static apr_status_t msre_action_sanitizeMatched_execute(modsec_rec *msr, apr_poo
 static apr_status_t msre_action_sanitizeRequestHeader_execute(modsec_rec *msr, apr_pool_t *mptmp,
     msre_rule *rule, msre_action *action)
 {
+    assert(msr != NULL);
+    assert(msr->request_headers_to_sanitize != NULL);
+    assert(action != NULL);
+    assert(action->param != NULL);
     apr_table_set(msr->request_headers_to_sanitize, action->param, "1");
     return 1;
 }
@@ -1438,6 +1537,10 @@ static apr_status_t msre_action_sanitizeRequestHeader_execute(modsec_rec *msr, a
 static apr_status_t msre_action_sanitizeResponseHeader_execute(modsec_rec *msr, apr_pool_t *mptmp,
     msre_rule *rule, msre_action *action)
 {
+    assert(msr != NULL);
+    assert(msr->response_headers_to_sanitize != NULL);
+    assert(action != NULL);
+    assert(action->param != NULL);
     apr_table_set(msr->response_headers_to_sanitize, action->param, "1");
     return 1;
 }
@@ -1446,6 +1549,9 @@ static apr_status_t msre_action_sanitizeResponseHeader_execute(modsec_rec *msr, 
 static apr_status_t msre_action_setenv_execute(modsec_rec *msr, apr_pool_t *mptmp,
     msre_rule *rule, msre_action *action)
 {
+    assert(msr != NULL);
+    assert(action != NULL);
+    assert(action->param != NULL);
     char *data = apr_pstrdup(mptmp, action->param);
     char *env_name = NULL, *env_value = NULL;
     char *s = NULL;
@@ -1463,6 +1569,7 @@ static apr_status_t msre_action_setenv_execute(modsec_rec *msr, apr_pool_t *mptm
         *s = '\0';
     }
 
+    assert(msr->txcfg != NULL);
     if (msr->txcfg->debuglog_level >= 9) {
         msr_log(msr, 9, "Setting env variable: %s=%s", env_name, env_value);
     }
@@ -1481,6 +1588,7 @@ static apr_status_t msre_action_setenv_execute(modsec_rec *msr, apr_pool_t *mptm
     /* Execute the requested action. */
     if (env_name != NULL && env_name[0] == '!') {
         /* Delete */
+        assert(msr->r != NULL);
         apr_table_unset(msr->r->subprocess_env, env_name + 1);
 
         if (msr->txcfg->debuglog_level >= 9) {
@@ -1501,6 +1609,7 @@ static apr_status_t msre_action_setenv_execute(modsec_rec *msr, apr_pool_t *mptm
         expand_macros(msr, val, rule, mptmp);
 
         /* To be safe, we escape NULs as it goes in subprocess_env. */
+        assert(msr->mp != NULL);
         val_value = log_escape_nul(msr->mp, (const unsigned char *)val->value, val->value_len);
 
         apr_table_set(msr->r->subprocess_env, env_name, val_value);
@@ -1519,6 +1628,9 @@ static apr_status_t msre_action_setenv_execute(modsec_rec *msr, apr_pool_t *mptm
 apr_status_t msre_action_setvar_execute(modsec_rec *msr, apr_pool_t *mptmp,
     msre_rule *rule, char *var_name, char *var_value)
 {
+    assert(msr != NULL);
+    assert(var_name != NULL);
+    assert(var_value != NULL);
     char *col_name = NULL;
     char *s = NULL;
     apr_table_t *target_col = NULL;
@@ -1540,9 +1652,13 @@ apr_status_t msre_action_setvar_execute(modsec_rec *msr, apr_pool_t *mptmp,
     var->value_len = strlen(var->value);
     expand_macros(msr, var, rule, mptmp);
     var_name = log_escape_nq_ex(msr->mp, var->value, var->value_len);
+    if (var_name == NULL) {
+        msr_log(msr, 1, "Failed to allocate space to expand name macros");
+        return -1;
+    }
 
     /* Handle the exclamation mark. */
-    if (var_name != NULL && var_name[0] == '!') {
+    if (var_name[0] == '!') {
         var_name = var_name + 1;
         is_negated = 1;
     }
@@ -1704,6 +1820,9 @@ apr_status_t msre_action_setvar_execute(modsec_rec *msr, apr_pool_t *mptmp,
 static apr_status_t msre_action_setvar_parse(modsec_rec *msr, apr_pool_t *mptmp,
     msre_rule *rule, msre_action *action)
 {
+    assert(msr != NULL);
+    assert(action != NULL);
+    assert(action->param != NULL);
     char *data = apr_pstrdup(mptmp, action->param);
     char *var_name = NULL, *var_value = NULL;
     char *s = NULL;
@@ -1719,7 +1838,7 @@ static apr_status_t msre_action_setvar_parse(modsec_rec *msr, apr_pool_t *mptmp,
         var_value = s + 1;
         *s = '\0';
 
-        while ((*var_value != '\0')&&(isspace(*var_value))) var_value++;
+        while (isspace(*var_value)) var_value++;
     }
 
     return msre_action_setvar_execute(msr,mptmp,rule,var_name,var_value);
@@ -1729,6 +1848,9 @@ static apr_status_t msre_action_setvar_parse(modsec_rec *msr, apr_pool_t *mptmp,
 static apr_status_t msre_action_expirevar_execute(modsec_rec *msr, apr_pool_t *mptmp,
     msre_rule *rule, msre_action *action)
 {
+    assert(msr != NULL);
+    assert(action != NULL);
+    assert(action->param != NULL);
     char *data = apr_pstrdup(mptmp, action->param);
     char *col_name = NULL, *var_name = NULL, *var_value = NULL;
     char *s = NULL;
@@ -1826,6 +1948,9 @@ static apr_status_t msre_action_expirevar_execute(modsec_rec *msr, apr_pool_t *m
 static apr_status_t msre_action_deprecatevar_execute(modsec_rec *msr, apr_pool_t *mptmp,
     msre_rule *rule, msre_action *action)
 {
+    assert(msr != NULL);
+    assert(action != NULL);
+    assert(action->param != NULL);
     char *data = apr_pstrdup(mptmp, action->param);
     char *col_name = NULL, *var_name = NULL, *var_value = NULL;
     char *s = NULL;
@@ -1960,6 +2085,10 @@ static apr_status_t msre_action_deprecatevar_execute(modsec_rec *msr, apr_pool_t
 static apr_status_t init_collection(modsec_rec *msr, const char *real_col_name,
     const char *col_name, const char *col_key, unsigned int col_key_len)
 {
+    assert(msr != NULL);
+    assert(msr->collections != NULL);
+    assert(msr->txcfg != NULL);
+    assert(real_col_name != NULL);
     apr_table_t *table = NULL;
     msc_string *var = NULL;
 
@@ -1973,7 +2102,6 @@ static apr_status_t init_collection(modsec_rec *msr, const char *real_col_name,
 
     /* Init collection from storage. */
     table = collection_retrieve(msr, real_col_name, col_key, col_key_len);
-
     if (table == NULL) {
         /* Does not exist yet - create new. */
 
@@ -2094,6 +2222,9 @@ static apr_status_t init_collection(modsec_rec *msr, const char *real_col_name,
 static apr_status_t msre_action_initcol_execute(modsec_rec *msr, apr_pool_t *mptmp,
     msre_rule *rule, msre_action *action)
 {
+    assert(msr != NULL);
+    assert(action != NULL);
+    assert(action->param != NULL);
     char *data = apr_pstrdup(msr->mp, action->param);
     char *col_name = NULL, *real_col_name, *col_key = NULL;
     unsigned int col_key_len;
@@ -2130,6 +2261,9 @@ static apr_status_t msre_action_initcol_execute(modsec_rec *msr, apr_pool_t *mpt
 static apr_status_t msre_action_setsid_execute(modsec_rec *msr, apr_pool_t *mptmp,
     msre_rule *rule, msre_action *action)
 {
+    assert(msr != NULL);
+    assert(action != NULL);
+    assert(action->param != NULL);
     msc_string *var = NULL;
     char *real_col_name = NULL, *col_key = NULL;
     unsigned int col_key_len;
@@ -2154,6 +2288,9 @@ static apr_status_t msre_action_setsid_execute(modsec_rec *msr, apr_pool_t *mptm
 static apr_status_t msre_action_setuid_execute(modsec_rec *msr, apr_pool_t *mptmp,
     msre_rule *rule, msre_action *action)
 {
+    assert(msr != NULL);
+    assert(action != NULL);
+    assert(action->param != NULL);
     msc_string *var = NULL;
     char *real_col_name = NULL, *col_key = NULL;
     unsigned int col_key_len;
@@ -2178,6 +2315,9 @@ static apr_status_t msre_action_setuid_execute(modsec_rec *msr, apr_pool_t *mptm
 static apr_status_t msre_action_setrsc_execute(modsec_rec *msr, apr_pool_t *mptmp,
     msre_rule *rule, msre_action *action)
 {
+    assert(msr != NULL);
+    assert(action != NULL);
+    assert(action->param != NULL);
     msc_string *var = NULL;
     char *real_col_name = NULL, *col_key = NULL;
     unsigned int col_key_len;
@@ -2199,6 +2339,8 @@ static apr_status_t msre_action_setrsc_execute(modsec_rec *msr, apr_pool_t *mptm
 
 /* exec */
 static char *msre_action_exec_validate(msre_engine *engine, apr_pool_t *mp, msre_action *action) {
+    assert(action != NULL);
+    assert(action->param != NULL);
     #if defined(WITH_LUA)
     char *filename = (char *)action->param;
 
@@ -2226,7 +2368,9 @@ static char *msre_action_exec_validate(msre_engine *engine, apr_pool_t *mp, msre
 static apr_status_t msre_action_exec_execute(modsec_rec *msr, apr_pool_t *mptmp,
     msre_rule *rule, msre_action *action)
 {
-    #if defined(WITH_LUA)
+    assert(msr != NULL);
+    assert(action != NULL);
+#if defined(WITH_LUA)
     if (action->param_data != NULL) { /* Lua */
         msc_script *script = (msc_script *)action->param_data;
         char *my_error_msg = NULL;
@@ -2254,6 +2398,9 @@ static apr_status_t msre_action_exec_execute(modsec_rec *msr, apr_pool_t *mptmp,
 static apr_status_t msre_action_prepend_execute(modsec_rec *msr, apr_pool_t *mptmp,
     msre_rule *rule, msre_action *action)
 {
+    assert(msr != NULL);
+    assert(action != NULL);
+    assert(action->param != NULL);
     msc_string *var = NULL;
 
     /* Expand any macros in the text */
@@ -2274,6 +2421,9 @@ static apr_status_t msre_action_prepend_execute(modsec_rec *msr, apr_pool_t *mpt
 static apr_status_t msre_action_append_execute(modsec_rec *msr, apr_pool_t *mptmp,
     msre_rule *rule, msre_action *action)
 {
+    assert(msr != NULL);
+    assert(action != NULL);
+    assert(action->param != NULL);
     msc_string *var = NULL;
 
     /* Expand any macros in the text */

@@ -21,6 +21,8 @@
 static apr_table_t *collection_unpack(modsec_rec *msr, const unsigned char *blob, unsigned int blob_size,
     int log_vars)
 {
+    assert(msr != NULL);
+    assert(blob != NULL);
     apr_table_t *col = NULL;
     unsigned int blob_offset;
 
@@ -90,6 +92,8 @@ static apr_table_t *collection_unpack(modsec_rec *msr, const unsigned char *blob
 static apr_table_t *collection_retrieve_ex(apr_sdbm_t *existing_dbm, modsec_rec *msr, const char *col_name,
     const char *col_key, int col_key_len)
 {
+    assert(msr != NULL);
+    assert(col_name != NULL);
     char *dbm_filename = NULL;
     apr_status_t rc;
     apr_sdbm_datum_t key;
@@ -100,7 +104,7 @@ static apr_table_t *collection_retrieve_ex(apr_sdbm_t *existing_dbm, modsec_rec 
     apr_table_entry_t *te;
     int expired = 0;
     int i;
-
+    char *userinfo = get_username(msr->mp);
 
     if (msr->txcfg->data_dir == NULL) {
         msr_log(msr, 1, "collection_retrieve_ex: Unable to retrieve collection (name \"%s\", key \"%s\"). Use "
@@ -109,7 +113,7 @@ static apr_table_t *collection_retrieve_ex(apr_sdbm_t *existing_dbm, modsec_rec 
         goto cleanup;
     }
 
-    dbm_filename = apr_pstrcat(msr->mp, msr->txcfg->data_dir, "/", col_name, NULL);
+    dbm_filename = apr_pstrcat(msr->mp, msr->txcfg->data_dir, "/", userinfo, "-", col_name, NULL);
 
     if (msr->txcfg->debuglog_level >= 9) {
         msr_log(msr, 9, "collection_retrieve_ex: collection_retrieve_ex: Retrieving collection (name \"%s\", filename \"%s\")",log_escape(msr->mp, col_name),
@@ -346,6 +350,7 @@ cleanup:
 apr_table_t *collection_retrieve(modsec_rec *msr, const char *col_name,
     const char *col_key, int col_key_len)
 {
+    assert(msr != NULL);
     apr_time_t time_before = apr_time_now();
     apr_table_t *rtable = NULL;
 
@@ -360,6 +365,7 @@ apr_table_t *collection_retrieve(modsec_rec *msr, const char *col_name,
  *
  */
 int collection_store(modsec_rec *msr, apr_table_t *col) {
+    assert(msr != NULL);
     char *dbm_filename = NULL;
     msc_string *var_name = NULL, *var_key = NULL;
     unsigned char *blob = NULL;
@@ -373,6 +379,7 @@ int collection_store(modsec_rec *msr, apr_table_t *col) {
     int i;
     const apr_table_t *stored_col = NULL;
     const apr_table_t *orig_col = NULL;
+    char *userinfo = get_username(msr->mp);
 
     var_name = (msc_string *)apr_table_get(col, "__name");
     if (var_name == NULL) {
@@ -392,7 +399,7 @@ int collection_store(modsec_rec *msr, apr_table_t *col) {
     }
 
     // ENH: lowercase the var name in the filename
-    dbm_filename = apr_pstrcat(msr->mp, msr->txcfg->data_dir, "/", var_name->value, NULL);
+    dbm_filename = apr_pstrcat(msr->mp, msr->txcfg->data_dir, "/", userinfo, "-", var_name->value, NULL);
 
     if (msr->txcfg->debuglog_level >= 9) {
         msr_log(msr, 9, "collection_store: Retrieving collection (name \"%s\", filename \"%s\")",log_escape(msr->mp, var_name->value),
@@ -631,9 +638,9 @@ int collection_store(modsec_rec *msr, apr_table_t *col) {
 #endif
 
     if (msr->txcfg->debuglog_level >= 4) {
-        msr_log(msr, 4, "collection_store: Persisted collection (name \"%s\", key \"%s\").",
+        msr_log(msr, 4, "collection_store: Persisted collection (name \"%s\", key \"%s\", length=%d).",
             log_escape_ex(msr->mp, var_name->value, var_name->value_len),
-            log_escape_ex(msr->mp, var_key->value, var_key->value_len));
+            log_escape_ex(msr->mp, var_key->value, var_key->value_len), value.dsize);
     }
 
     return 0;
@@ -647,6 +654,7 @@ error:
  */
 int collections_remove_stale(modsec_rec *msr, apr_table_t *col)
 {
+    assert(msr != NULL);
     msc_string *var_name = NULL;
     char* col_name;
     char *dbm_filename = NULL;

@@ -736,6 +736,45 @@
     ),
 },
 
+# Single quote within double quotes is ok
+{
+    type => "misc",
+    comment => "multipart parser (C-D uses single quote within double quotes)",
+    conf => qq(
+        SecRuleEngine On
+        SecDebugLog $ENV{DEBUG_LOG}
+        SecDebugLogLevel 9
+        SecRequestBodyAccess On
+        SecRule MULTIPART_INVALID_QUOTING "!\@eq 0" "phase:2,deny,id:500169"
+    ),
+    match_log => {
+        debug => [ qr/Adding request argument \(BODY\): name "a'b/s, 1 ],
+        -debug => [ qr/Adding request argument \(BODY\): name "b/s, 1 ],
+    },
+    match_response => {
+        status => qr/^200$/,
+    },
+    request => new HTTP::Request(
+        POST => "http://$ENV{SERVER_NAME}:$ENV{SERVER_PORT}/test.txt",
+        [
+            "Content-Type" => "multipart/form-data; boundary=---------------------------69343412719991675451336310646",
+        ],
+        normalize_raw_request_data(
+            q(
+                -----------------------------69343412719991675451336310646
+                Content-Disposition: form-data; name="a'b"
+                
+                1
+                -----------------------------69343412719991675451336310646
+                Content-Disposition: form-data; name="aaa"; filename="d'ummy"
+                
+                2
+                -----------------------------69343412719991675451336310646--
+            ),
+        ),
+    ),
+},
+
 # Invalid boundary separators
 {
     type => "misc",
@@ -1314,15 +1353,14 @@
         SecDebugLog $ENV{DEBUG_LOG}
         SecDebugLogLevel 9
         SecRequestBodyAccess On
-        SecRule MULTIPART_STRICT_ERROR "\@eq 1" "phase:2,deny,id:500134"
-        SecRule MULTIPART_UNMATCHED_BOUNDARY "\@eq 1" "phase:2,deny,id:500135"
-        SecRule REQBODY_PROCESSOR_ERROR "\@eq 1" "phase:2,deny,id:500136"
+        SecRule MULTIPART_STRICT_ERROR "\@eq 1" "phase:2,deny,status:400,id:500134"
+        SecRule REQBODY_PROCESSOR_ERROR "\@eq 1" "phase:2,deny,status:400,id:500136"
     ),
     match_log => {
-        debug => [ qr/boundary was quoted.*No boundaries found in payload/s, 1 ],
+        debug => [ qr/Multipart: Warning: boundary was quoted./s, 1 ],
     },
     match_response => {
-        status => qr/^403$/,
+        status => qr/^400$/,
     },
     request => new HTTP::Request(
         POST => "http://$ENV{SERVER_NAME}:$ENV{SERVER_PORT}/test.txt",
@@ -1331,20 +1369,20 @@
         ],
         normalize_raw_request_data(
             q(
-                --0000
+                -- 0000
                 Content-Disposition: form-data; name="name"
                 
                 Brian Rectanus
-                --0000
+                -- 0000
                 Content-Disposition: form-data; name="email"
                 
                 brian.rectanus@breach.com
-                --0000
+                -- 0000
                 Content-Disposition: form-data; name="image"; filename="image.jpg"
                 Content-Type: image/jpeg
                 
                 BINARYDATA
-                --0000--
+                -- 0000--
             ),
         ),
     ),
@@ -1805,6 +1843,51 @@
                 Content-Disposition: form-data; name="test"
                 
                 This is test data.
+                --0000--
+            ),
+        ),
+    ),
+},
+
+# part headers
+{
+    type => "misc",
+    comment => "multipart parser (part headers)",
+    conf => qq(
+        SecRuleEngine On
+        SecDebugLog $ENV{DEBUG_LOG}
+        SecDebugLogLevel 9
+        SecRequestBodyAccess On
+        SecRule MULTIPART_STRICT_ERROR "\@eq 1" "phase:2,deny,status:400,id:500168"
+        SecRule REQBODY_PROCESSOR_ERROR "\@eq 1" "phase:2,deny,status:400,id:500169"
+        SecRule MULTIPART_PART_HEADERS:image "\@rx content-type:.*jpeg" "phase:2,deny,status:403,id:500170,t:lowercase"
+    ),
+    match_log => {
+        debug => [ qr/500170.*against MULTIPART_PART_HEADERS:image.*Rule returned 1./s, 1 ],
+    },
+    match_response => {
+        status => qr/^403$/,
+    },
+    request => new HTTP::Request(
+        POST => "http://$ENV{SERVER_NAME}:$ENV{SERVER_PORT}/test.txt",
+        [
+            "Content-Type" => q(multipart/form-data; boundary=0000),
+        ],
+        normalize_raw_request_data(
+            q(
+                --0000
+                Content-Disposition: form-data; name="username"
+                
+                Bill
+                --0000
+                Content-Disposition: form-data; name="email"
+                
+                bill@fakesite.com
+                --0000
+                Content-Disposition: form-data; name="image"; filename="image.jpg"
+                Content-Type: image/jpeg
+                
+                BINARYDATA
                 --0000--
             ),
         ),
