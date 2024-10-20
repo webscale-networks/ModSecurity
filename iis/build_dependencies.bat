@@ -7,27 +7,27 @@
 @set SOURCE_DIR=%USERPROFILE%\Downloads
 
 :: Dependencies
-@set CMAKE=cmake-3.8.2-win32-x86.zip
-@set PCRE=pcre-8.40.zip
-@set ZLIB=zlib-1.2.11.tar.gz
-@set LIBXML2=libxml2-2.9.4.tar.gz
-@set LUA=lua-5.3.4.tar.gz
-@set CURL=curl-7.54.1.zip
-@set APACHE_SRC=httpd-2.4.27.tar.gz
-@set APACHE_BIN32=httpd-2.4.27-win32-VC11.zip
-@set APACHE_BIN64=httpd-2.4.27-win64-VC11.zip
+@set CMAKE=cmake-3.12.4-win32-x86.zip
+@set PCRE=pcre-8.45.zip
+@set ZLIB=zlib-1.2.12.tar.gz
+@set LIBXML2=libxml2-2.9.14.tar.gz
+@set LUA=lua-5.3.6.tar.gz
+@set CURL=curl-7.83.1.zip
+@set APACHE_SRC=httpd-2.4.54.tar.gz
+@set APACHE_BIN32=httpd-2.4.54-win32-VS16.zip
+@set APACHE_BIN64=httpd-2.4.54-win64-VS16.zip
 @set YAJL=yajl-2.1.0.zip
-@set SSDEEP=ssdeep-2.13.tar.gz
-@set SSDEEP_BIN=ssdeep-2.13.zip
+@set SSDEEP=ssdeep-2.14.1.tar.gz
+@set SSDEEP_BIN=ssdeep-2.14.1.zip
 
 @set CMAKE_DIR=%WORK_DIR%\%CMAKE:~0,-4%\bin
 
 :: Aditional paths.
-@set PATH=%PATH%;%CMAKE_DIR%;"c:\program files\7-zip"
+@set "DIR_7ZIP=c:\program files\7-zip"
+@set PATH=%PATH%;%CMAKE_DIR%;%DIR_7ZIP%
 
-
-:: @set VCARGS32="C:\Program Files (x86)\Microsoft Visual Studio 12.0\VC\bin\vcvars32.bat"
-:: @set VCARGS64="C:\Program Files (x86)\Microsoft Visual Studio 12.0\VC\bin\x86_amd64\vcvarsx86_amd64.bat"
+:: @set VCARGS32="C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Auxiliary\Build\vcvars32.bat"
+:: @set VCARGS64="C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Auxiliary\Build\vcvarsx86_amd64.bat"
 
 
 :: Do not edit bellow this line.
@@ -64,7 +64,7 @@ call cl 2>&1 | findstr /C:"x64"
 @echo # pcre. - %PCRE%
 @call dependencies/build_pcre.bat
 @if NOT (%ERRORLEVEL%) == (0) goto build_failed_pcre
-@cd "%CURRENT_DIR%"
+@cd "%CURRENT_DIR%
 
 @echo # zlib - %ZLIB%
 @call dependencies/build_zlib.bat

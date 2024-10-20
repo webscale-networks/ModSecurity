@@ -1,6 +1,6 @@
 /*
  * ModSecurity for Apache 2.x, http://www.modsecurity.org/
- * Copyright (c) 2004-2011 Trustwave Holdings, Inc. (http://www.trustwave.com/)
+ * Copyright (c) 2004-2022 Trustwave Holdings, Inc. (http://www.trustwave.com/)
  *
  * You may not use this file except in compliance with
  * the License.  You may obtain a copy of the License at
@@ -16,8 +16,12 @@
 
 #ifdef WITH_YAJL
 
+const char *base_offset=NULL;
+
 int json_add_argument(modsec_rec *msr, const char *value, unsigned length)
 {
+    assert(msr != NULL);
+    assert(msr->json != NULL);
     msc_arg *arg = (msc_arg *) NULL;
 
     /**
@@ -25,8 +29,7 @@ int json_add_argument(modsec_rec *msr, const char *value, unsigned length)
      * to reference this argument; for now we simply ignore these
      */
     if (!msr->json->current_key) {
-        msr_log(msr, 3, "Cannot add scalar value without an associated key");
-        return 1;
+        msr->json->current_key = "";
     }
 
     arg = (msc_arg *) apr_pcalloc(msr->mp, sizeof(msc_arg));
@@ -48,11 +51,23 @@ int json_add_argument(modsec_rec *msr, const char *value, unsigned length)
      */
     arg->value = apr_pstrmemdup(msr->mp, value, length);
     arg->value_len = length;
+    arg->value_origin_len = length;
+    arg->value_origin_offset = value-base_offset;
     arg->origin = "JSON";
 
     if (msr->txcfg->debuglog_level >= 9) {
         msr_log(msr, 9, "Adding JSON argument '%s' with value '%s'",
             arg->name, arg->value);
+    }
+    if (apr_table_elts(msr->arguments)->nelts >= msr->txcfg->arguments_limit) {
+        if (msr->txcfg->debuglog_level >= 4) {
+            msr_log(msr, 4, "Skipping request argument, over limit (%s): name \"%s\", value \"%s\"",
+                    arg->origin, log_escape_ex(msr->mp, arg->name, arg->name_len),
+                    log_escape_ex(msr->mp, arg->value, arg->value_len));
+        }
+        msr->msc_reqbody_error = 1;
+        msr->json->yajl_error = apr_psprintf(msr->mp, "More than %ld JSON keys", msr->txcfg->arguments_limit);
+        return 0;
     }
 
     apr_table_addn(msr->arguments,
@@ -74,6 +89,8 @@ int json_add_argument(modsec_rec *msr, const char *value, unsigned length)
 static int yajl_map_key(void *ctx, const unsigned char *key, size_t length)
 {
     modsec_rec *msr = (modsec_rec *) ctx;
+    assert(msr != NULL);
+    assert(msr->json != NULL);
     unsigned char *safe_key = (unsigned char *) NULL;
 
     /**
@@ -105,6 +122,7 @@ static int yajl_map_key(void *ctx, const unsigned char *key, size_t length)
 static int yajl_null(void *ctx)
 {
     modsec_rec *msr = (modsec_rec *) ctx;
+    assert(msr != NULL);
 
     return json_add_argument(msr, "", 0);
 }
@@ -115,6 +133,7 @@ static int yajl_null(void *ctx)
 static int yajl_boolean(void *ctx, int value)
 {
     modsec_rec *msr = (modsec_rec *) ctx;
+    assert(msr != NULL);
 
     if (value) {
         return json_add_argument(msr, "true", strlen("true"));
@@ -130,6 +149,7 @@ static int yajl_boolean(void *ctx, int value)
 static int yajl_string(void *ctx, const unsigned char *value, size_t length)
 {
     modsec_rec *msr = (modsec_rec *) ctx;
+    assert(msr != NULL);
 
     return json_add_argument(msr, value, length);
 }
@@ -142,8 +162,73 @@ static int yajl_string(void *ctx, const unsigned char *value, size_t length)
 static int yajl_number(void *ctx, const char *value, size_t length)
 {
     modsec_rec *msr = (modsec_rec *) ctx;
+    assert(msr != NULL);
 
     return json_add_argument(msr, value, length);
+}
+
+static int yajl_start_array(void *ctx) {
+    modsec_rec *msr = (modsec_rec *) ctx;
+    assert(msr != NULL);
+    assert(msr->json != NULL);
+
+    if (!msr->json->current_key && !msr->json->prefix) {
+        msr->json->prefix = apr_pstrdup(msr->mp, "array");
+        msr->json->current_key = apr_pstrdup(msr->mp, "array");
+    }
+    else if (msr->json->prefix) {
+        msr->json->prefix = apr_psprintf(msr->mp, "%s.%s", msr->json->prefix,
+            msr->json->current_key);
+    }
+    else {
+        msr->json->prefix = apr_pstrdup(msr->mp, msr->json->current_key);
+    }
+    msr->json->current_depth++;
+    if (msr->json->current_depth > msr->txcfg->reqbody_json_depth_limit) {
+        msr->json->depth_limit_exceeded = 1;
+	return 0;
+    }
+
+    if (msr->txcfg->debuglog_level >= 9) {
+        msr_log(msr, 9, "New JSON hash context (prefix '%s')", msr->json->prefix);
+    }
+
+
+    return 1;
+}
+
+
+static int yajl_end_array(void *ctx) {
+    modsec_rec *msr = (modsec_rec *) ctx;
+    assert(msr != NULL);
+    assert(msr->json != NULL);
+    unsigned char *separator = (unsigned char *) NULL;
+
+    /**
+     * If we have no prefix, then this is the end of a top-level hash and
+     * we don't do anything
+     */
+    if (msr->json->prefix == NULL) return 1;
+
+    /**
+     * Current prefix might or not include a separator character; top-level
+     * hash keys do not have separators in the variable name
+     */
+    separator = strrchr(msr->json->prefix, '.');
+
+    if (separator) {
+        msr->json->prefix = apr_pstrmemdup(msr->mp, msr->json->prefix,
+            separator - msr->json->prefix);
+    }
+    else {
+        /**
+         * TODO: Check if it is safe to do this kind of pointer tricks
+         */
+        msr->json->prefix = (unsigned char *) NULL;
+    }
+    msr->json->current_depth--;
+
+    return 1;
 }
 
 /**
@@ -153,6 +238,8 @@ static int yajl_number(void *ctx, const char *value, size_t length)
 static int yajl_start_map(void *ctx)
 {
     modsec_rec *msr = (modsec_rec *) ctx;
+    assert(msr != NULL);
+    assert(msr->json != NULL);
 
     /**
      * If we do not have a current_key, this is a top-level hash, so we do not
@@ -171,6 +258,11 @@ static int yajl_start_map(void *ctx)
     else {
         msr->json->prefix = apr_pstrdup(msr->mp, msr->json->current_key);
     }
+    msr->json->current_depth++;
+    if (msr->json->current_depth > msr->txcfg->reqbody_json_depth_limit) {
+        msr->json->depth_limit_exceeded = 1;
+	return 0;
+    }
 
     if (msr->txcfg->debuglog_level >= 9) {
         msr_log(msr, 9, "New JSON hash context (prefix '%s')", msr->json->prefix);
@@ -186,6 +278,8 @@ static int yajl_start_map(void *ctx)
 static int yajl_end_map(void *ctx)
 {
     modsec_rec *msr = (modsec_rec *) ctx;
+    assert(msr != NULL);
+    assert(msr->json != NULL);
     unsigned char *separator = (unsigned char *) NULL;
 
     /**
@@ -212,6 +306,7 @@ static int yajl_end_map(void *ctx)
         msr->json->current_key = msr->json->prefix;
         msr->json->prefix = (unsigned char *) NULL;
     }
+    msr->json->current_depth--;
 
     return 1;
 }
@@ -220,6 +315,8 @@ static int yajl_end_map(void *ctx)
  * Initialise JSON parser.
  */
 int json_init(modsec_rec *msr, char **error_msg) {
+    assert(msr != NULL);
+    assert(error_msg != NULL);
     /**
      * yajl configuration and callbacks
      */
@@ -233,11 +330,10 @@ int json_init(modsec_rec *msr, char **error_msg) {
         yajl_start_map,
         yajl_map_key,
         yajl_end_map,
-        NULL /* yajl_start_array */,
-        NULL /* yajl_end_array  */
+        yajl_start_array,
+        yajl_end_array
     };
 
-    if (error_msg == NULL) return -1;
     *error_msg = NULL;
 
     msr_log(msr, 4, "JSON parser initialization");
@@ -249,6 +345,9 @@ int json_init(modsec_rec *msr, char **error_msg) {
      */
     msr->json->prefix = (unsigned char *) NULL;
     msr->json->current_key = (unsigned char *) NULL;
+
+    msr->json->current_depth = 0;
+    msr->json->depth_limit_exceeded = 0;
 
     /**
      * yajl initialization
@@ -271,14 +370,25 @@ int json_init(modsec_rec *msr, char **error_msg) {
  * Feed one chunk of data to the JSON parser.
  */
 int json_process_chunk(modsec_rec *msr, const char *buf, unsigned int size, char **error_msg) {
-    if (error_msg == NULL) return -1;
+    assert(msr != NULL);
+    assert(msr->json != NULL);
+    assert(error_msg != NULL);
     *error_msg = NULL;
+    base_offset=buf;
 
     /* Feed our parser and catch any errors */
     msr->json->status = yajl_parse(msr->json->handle, buf, size);
     if (msr->json->status != yajl_status_ok) {
-        /* We need to free the yajl error message later, how to do this? */
-        *error_msg = yajl_get_error(msr->json->handle, 0, buf, size);
+	if (msr->json->depth_limit_exceeded) {
+           *error_msg = "JSON depth limit exceeded";
+	} else {
+        if (msr->json->yajl_error) *error_msg = msr->json->yajl_error;
+        else {
+             char* yajl_err = yajl_get_error(msr->json->handle, 0, buf, size);
+             *error_msg = apr_pstrdup(msr->mp, yajl_err);
+             yajl_free_error(msr->json->handle, yajl_err);
+        }
+	}
         return -1;
     }
 
@@ -289,16 +399,24 @@ int json_process_chunk(modsec_rec *msr, const char *buf, unsigned int size, char
  * Finalise JSON parsing.
  */
 int json_complete(modsec_rec *msr, char **error_msg) {
+    assert(msr != NULL);
+    assert(msr->json != NULL);
+    assert(error_msg != NULL);
     char *json_data = (char *) NULL;
 
-    if (error_msg == NULL) return -1;
     *error_msg = NULL;
 
     /* Wrap up the parsing process */
     msr->json->status = yajl_complete_parse(msr->json->handle);
     if (msr->json->status != yajl_status_ok) {
-        /* We need to free the yajl error message later, how to do this? */
-        *error_msg = yajl_get_error(msr->json->handle, 0, NULL, 0);
+	if (msr->json->depth_limit_exceeded) {
+           *error_msg = "JSON depth limit exceeded";
+	} else {
+           char *yajl_err = yajl_get_error(msr->json->handle, 0, NULL, 0);
+           *error_msg = apr_pstrdup(msr->mp, yajl_err);
+           yajl_free_error(msr->json->handle, yajl_err);
+	}
+
         return -1;
     }
 
@@ -309,6 +427,8 @@ int json_complete(modsec_rec *msr, char **error_msg) {
  * Frees the resources used for JSON parsing.
  */
 apr_status_t json_cleanup(modsec_rec *msr) {
+    assert(msr != NULL);
+    assert(msr->json != NULL);
     msr_log(msr, 4, "JSON: Cleaning up JSON results");
     if (msr->json->handle != NULL) {
         yajl_free(msr->json->handle);

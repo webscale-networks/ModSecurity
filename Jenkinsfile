@@ -9,7 +9,7 @@
 node {
   projectName = 'modsecurity'
   svnRepo = "file:///repo/${projectName}"
-  upstreamVersion = 'v2.9.2'
+  upstreamVersion = 'v2.9.8'
   isMasterBuild = env.BRANCH_NAME == (upstreamVersion + '-webscale')
 
   stage('check') {
@@ -53,7 +53,7 @@ node {
         error("${version} is already published and cannot be built again")
       }
     } else {
-      m = (env.BRANCH_NAME =~ ~/^${upstreamVersion}-webscale-(\d+)$/)
+      m = (env.BRANCH_NAME =~ ~/^${upstreamVersion}-webscale-(.*)$/)
       if (!m.find()) {
         error("Cannot decode branch name ${env.BRANCH_NAME}")
       }

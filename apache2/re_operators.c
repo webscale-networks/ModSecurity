@@ -1,6 +1,6 @@
 /*
 * ModSecurity for Apache 2.x, http://www.modsecurity.org/
-* Copyright (c) 2004-2013 Trustwave Holdings, Inc. (http://www.trustwave.com/)
+* Copyright (c) 2004-2023 Trustwave Holdings, Inc. (http://www.trustwave.com/)
 *
 * You may not use this file except in compliance with
 * the License.  You may obtain a copy of the License at
@@ -44,6 +44,8 @@
 void msre_engine_op_register(msre_engine *engine, const char *name,
     fn_op_param_init_t fn1, fn_op_execute_t fn2)
 {
+    assert(engine != NULL);
+    assert(name != NULL);
     msre_op_metadata *metadata = (msre_op_metadata *)apr_pcalloc(engine->mp,
         sizeof(msre_op_metadata));
     if (metadata == NULL) return;
@@ -58,6 +60,7 @@ void msre_engine_op_register(msre_engine *engine, const char *name,
  *
  */
 msre_op_metadata *msre_engine_op_resolve(msre_engine *engine, const char *name) {
+    assert(engine != NULL);
     return (msre_op_metadata *)apr_table_get(engine->operators, name);
 }
 
@@ -70,6 +73,7 @@ msre_op_metadata *msre_engine_op_resolve(msre_engine *engine, const char *name) 
 static int msre_op_unconditionalmatch_execute(modsec_rec *msr, msre_rule *rule,
     msre_var *var, char **error_msg)
 {
+    assert(error_msg != NULL);
     *error_msg = "Unconditional match in SecAction.";
 
     /* Always match. */
@@ -81,6 +85,7 @@ static int msre_op_unconditionalmatch_execute(modsec_rec *msr, msre_rule *rule,
 static int msre_op_nomatch_execute(modsec_rec *msr, msre_rule *rule,
     msre_var *var, char **error_msg)
 {
+    assert(error_msg != NULL);
     *error_msg = "No match.";
 
     /* Never match. */
@@ -99,13 +104,17 @@ static int msre_op_nomatch_execute(modsec_rec *msr, msre_rule *rule,
 * \retval 0 On Fail
 */
 static int msre_op_ipmatch_param_init(msre_rule *rule, char **error_msg) {
+    assert(rule != NULL);
+    assert(error_msg != NULL);
+    // Normally useless code, left to be safe for the moment
+    if (error_msg == NULL) {
+        ap_log_perror(APLOG_MARK, APLOG_EMERG, 0, rule->ruleset->mp, "msre_op_ipmatch_param_init: error_msg is NULL");
+        return -1;
+    }
     char *param = NULL;
     int res = 0;
 
-    if (error_msg == NULL)
-        return -1;
-    else
-        *error_msg = NULL;
+    *error_msg = NULL;
 
     param = apr_pstrdup(rule->ruleset->mp, rule->op_param);
 
@@ -131,13 +140,13 @@ static int msre_op_ipmatch_param_init(msre_rule *rule, char **error_msg) {
 * \retval 0 On No Match
 */
 static int msre_op_ipmatch_execute(modsec_rec *msr, msre_rule *rule, msre_var *var, char **error_msg) {
+    assert(msr != NULL);
+    assert(var != NULL);
+    assert(error_msg != NULL);
     TreeRoot *rtree = NULL;
     int res = 0;
 
-    if (error_msg == NULL)
-        return -1;
-    else
-        *error_msg = NULL;
+    *error_msg = NULL;
 
     if (rule == NULL || rule->ip_op == NULL) {
         msr_log(msr, 1, "ipMatch Internal Error: ipmatch value is null.");
@@ -171,6 +180,8 @@ static int msre_op_ipmatch_execute(modsec_rec *msr, msre_rule *rule, msre_var *v
 * \retval 0 On Fail
 */
 static int msre_op_ipmatchFromFile_param_init(msre_rule *rule, char **error_msg) {
+    assert(rule != NULL);
+    assert(error_msg != NULL);
     const char *rootpath = NULL;
     const char *filepath = NULL;
     const char *ipfile_path = NULL;
@@ -258,14 +269,14 @@ static int msre_op_ipmatchFromFile_param_init(msre_rule *rule, char **error_msg)
 */
 static int msre_op_ipmatchFromFile_execute(modsec_rec *msr, msre_rule *rule,
     msre_var *var, char **error_msg) {
-
+    assert(msr != NULL);
+    assert(rule != NULL);
+    assert(var != NULL);
+    assert(error_msg != NULL);
     TreeRoot *rtree = (TreeRoot *)rule->op_param_data;
     int res = 0;
 
-    if (error_msg == NULL)
-        return -1;
-    else
-        *error_msg = NULL;
+    *error_msg = NULL;
 
     if (rtree == NULL)
     {
@@ -298,6 +309,8 @@ static int msre_op_ipmatchFromFile_execute(modsec_rec *msr, msre_rule *rule,
 /* rsub */
 
 static char *param_remove_escape(msre_rule *rule, char *str, int len)  {
+    assert(rule != NULL);
+    assert(str != NULL);
     char *parm = apr_pcalloc(rule->ruleset->mp, len);
     char *ret = parm;
 
@@ -330,6 +343,14 @@ static char *param_remove_escape(msre_rule *rule, char *str, int len)  {
  */
 #if !defined(MSC_TEST)
 static int msre_op_rsub_param_init(msre_rule *rule, char **error_msg) {
+    assert(rule != NULL);
+    assert(rule->ruleset != NULL);
+    assert(error_msg != NULL);
+    // Normally useless code, left to be safe for the moment
+    if (error_msg == NULL) {
+        ap_log_perror(APLOG_MARK, APLOG_EMERG, 0, rule->ruleset->mp, "msre_op_rsub_param_init: error_msg is NULL");
+        return -1;
+    }
 #if AP_SERVER_MAJORVERSION_NUMBER > 1 && AP_SERVER_MINORVERSION_NUMBER > 0
     ap_regex_t *regex;
 #else
@@ -347,7 +368,6 @@ static int msre_op_rsub_param_init(msre_rule *rule, char **error_msg) {
     int ignore_case = 0;
     unsigned short int op_len = 0;
 
-    if (error_msg == NULL) return -1;
     *error_msg = NULL;
 
     line = rule->op_param;
@@ -469,8 +489,20 @@ static int msre_op_rsub_param_init(msre_rule *rule, char **error_msg) {
 * \retval 0 On No Match
 */
 static int msre_op_rsub_execute(modsec_rec *msr, msre_rule *rule, msre_var *var, char **error_msg) {
+    assert(msr != NULL);
+    assert(rule != NULL);
+    assert(var != NULL);
+    assert(error_msg != NULL);
     msc_string *str = (msc_string *)apr_pcalloc(msr->mp, sizeof(msc_string));
+    if (!str) {
+        msr_log(msr, 1, "rsub: Memory allocation error");
+        return -1;
+    }
     msc_string *re_pattern = (msc_string *)apr_pcalloc(msr->mp, sizeof(msc_string));
+    if (!re_pattern) {
+        msr_log(msr, 1, "rsub: Memory allocation error");
+        return -1;
+    }
     char *offset = NULL;
     char *data = NULL, *pattern = NULL;
     char *data_out = NULL;
@@ -483,7 +515,6 @@ static int msre_op_rsub_execute(modsec_rec *msr, msre_rule *rule, msre_var *var,
     regmatch_t  pmatch[AP_MAX_REG_MATCH];
 #endif
 
-    if (error_msg == NULL) return -1;
     *error_msg = NULL;
 
     if(strcmp(var->name,"STREAM_OUTPUT_BODY") == 0 )  {
@@ -604,24 +635,15 @@ nextround:
     size+=sl;
     *data_out=0;
 
-    if(msr->stream_output_data != NULL && output_body == 1) {
-
-        memset(msr->stream_output_data, 0x0, msr->stream_output_length);
+    if (msr->stream_output_data != NULL && output_body == 1) {
         free(msr->stream_output_data);
         msr->stream_output_data = NULL;
         msr->stream_output_length = 0;
-
         msr->stream_output_data = (char *)malloc(size+1);
-
-        if(msr->stream_output_data == NULL)  {
-            return -1;
-        }
+        if (msr->stream_output_data == NULL) return -1;
 
         msr->stream_output_length = size;
-        memset(msr->stream_output_data, 0x0, size+1);
-
         msr->of_stream_changed = 1;
-
         memcpy(msr->stream_output_data, data, size);
         msr->stream_output_data[size] = '\0';
 
@@ -629,21 +651,20 @@ nextround:
         var->value = msr->stream_output_data;
     }
 
-    if(msr->stream_input_data != NULL && input_body == 1) {
-        memset(msr->stream_input_data, 0x0, msr->stream_input_length);
+    if (msr->stream_input_data != NULL && input_body == 1) {
         free(msr->stream_input_data);
         msr->stream_input_data = NULL;
         msr->stream_input_length = 0;
-
+#ifdef MSC_LARGE_STREAM_INPUT
+        msr->stream_input_allocated_length  = 0;
+#endif
         msr->stream_input_data = (char *)malloc(size+1);
-
-        if(msr->stream_input_data == NULL)  {
-            return -1;
-        }
+        if(msr->stream_input_data == NULL) return -1;
 
         msr->stream_input_length = size;
-        memset(msr->stream_input_data, 0x0, size+1);
-
+#ifdef MSC_LARGE_STREAM_INPUT
+        msr->stream_input_allocated_length = size;
+#endif
         msr->if_stream_changed = 1;
 
         memcpy(msr->stream_input_data, data, size);
@@ -671,13 +692,15 @@ nextround:
  * \retval 0 On fail
  */
 static int msre_op_validateHash_param_init(msre_rule *rule, char **error_msg) {
+    assert(rule != NULL);
+    assert(error_msg != NULL);
     const char *errptr = NULL;
     int erroffset;
     msc_regex_t *regex;
     const char *pattern = rule->op_param;
     #ifdef WITH_PCRE_STUDY
         #ifdef WITH_PCRE_JIT
-    int rc, jit;
+    int rc, jit = 0;
         #endif
     #endif
 
@@ -686,7 +709,12 @@ static int msre_op_validateHash_param_init(msre_rule *rule, char **error_msg) {
 
     /* Compile pattern */
     if(strstr(pattern,"%{") == NULL)    {
-        regex = msc_pregcomp_ex(rule->ruleset->mp, pattern, PCRE_DOTALL | PCRE_DOLLAR_ENDONLY, &errptr, &erroffset, msc_pcre_match_limit, msc_pcre_match_limit_recursion);
+#ifdef WITH_PCRE2
+        int options = PCRE2_DOTALL | PCRE2_DOLLAR_ENDONLY;
+#else
+        int options = PCRE_DOTALL | PCRE_DOLLAR_ENDONLY;
+#endif
+        regex = msc_pregcomp_ex(rule->ruleset->mp, pattern, options, &errptr, &erroffset, msc_pcre_match_limit, msc_pcre_match_limit_recursion);
         if (regex == NULL) {
             *error_msg = apr_psprintf(rule->ruleset->mp, "Error compiling pattern (offset %d): %s",
                     erroffset, errptr);
@@ -695,7 +723,11 @@ static int msre_op_validateHash_param_init(msre_rule *rule, char **error_msg) {
 
         #ifdef WITH_PCRE_STUDY
             #ifdef WITH_PCRE_JIT
+                #ifdef WITH_PCRE2
+        rc = regex->jit_compile_rc;
+                #else
         rc = msc_fullinfo(regex, PCRE_INFO_JIT, &jit);
+                #endif
         if ((rc != 0) || (jit != 1)) {
             *error_msg = apr_psprintf(rule->ruleset->mp,
                     "Rule %pp [id \"%s\"][file \"%s\"][line \"%d\"] - "
@@ -731,24 +763,30 @@ static int msre_op_validateHash_param_init(msre_rule *rule, char **error_msg) {
  * \retval 0 On fail
  */
 static int msre_op_validateHash_execute(modsec_rec *msr, msre_rule *rule, msre_var *var, char **error_msg) {
+    assert(msr != NULL);
+    assert(rule != NULL);
+    assert(var != NULL);
+    assert(error_msg != NULL);
     msc_regex_t *regex = (msc_regex_t *)rule->op_param_data;
     msc_string *re_pattern = (msc_string *)apr_pcalloc(msr->mp, sizeof(msc_string));
+    if (!re_pattern) {
+        msr_log(msr, 1, "validateHash: Memory allocation error");
+        return -1;
+    }
     const char *target;
     const char *errptr = NULL;
     int erroffset;
+    int options = 0;
     unsigned int target_length;
     char *my_error_msg = NULL;
     int ovector[33];
     int rc;
-    const char *pattern = NULL;
     #ifdef WITH_PCRE_STUDY
        #ifdef WITH_PCRE_JIT
-    int jit;
+    int jit = 0;
        #endif
     #endif
 
-
-    if (error_msg == NULL) return -1;
     *error_msg = NULL;
 
     if (msr->txcfg->hash_enforcement == HASH_DISABLED || msr->txcfg->hash_is_enabled == HASH_DISABLED)
@@ -770,15 +808,20 @@ static int msre_op_validateHash_execute(modsec_rec *msr, msre_rule *rule, msre_v
 
             expand_macros(msr, re_pattern, rule, msr->mp);
 
-            pattern = log_escape_re(msr->mp, re_pattern->value);
+            const char *pattern = log_escape_re(msr->mp, re_pattern->value);
             if (msr->txcfg->debuglog_level >= 6) {
                 msr_log(msr, 6, "Escaping pattern [%s]",pattern);
             }
 
-            regex = msc_pregcomp_ex(rule->ruleset->mp, pattern, PCRE_DOTALL | PCRE_DOLLAR_ENDONLY, &errptr, 
+#ifdef WITH_PCRE2
+            options = PCRE2_DOTALL | PCRE2_DOLLAR_ENDONLY;
+#else
+            options = PCRE_DOTALL | PCRE_DOLLAR_ENDONLY;
+#endif
+            regex = msc_pregcomp_ex(msr->mp, pattern, options, &errptr,
                     &erroffset, msc_pcre_match_limit, msc_pcre_match_limit_recursion);
             if (regex == NULL) {
-                *error_msg = apr_psprintf(rule->ruleset->mp, "Error compiling pattern (offset %d): %s",
+                *error_msg = apr_psprintf(msr->mp, "Error compiling pattern (offset %d): %s",
                         erroffset, errptr);
                 return 0;
             }
@@ -786,9 +829,13 @@ static int msre_op_validateHash_execute(modsec_rec *msr, msre_rule *rule, msre_v
             #ifdef WITH_PCRE_STUDY
                 #ifdef WITH_PCRE_JIT
             if (msr->txcfg->debuglog_level >= 4) {
+                    #ifdef WITH_PCRE2
+                rc = regex->jit_compile_rc;
+                    #else
                 rc = msc_fullinfo(regex, PCRE_INFO_JIT, &jit);
+                    #endif
                 if ((rc != 0) || (jit != 1)) {
-                    *error_msg = apr_psprintf(rule->ruleset->mp,
+                    *error_msg = apr_psprintf(msr->mp,
                             "Rule %pp [id \"%s\"][file \"%s\"][line \"%d\"] - "
                             "Execution error - "
                             "Does not support JIT (%d)",
@@ -820,7 +867,11 @@ static int msre_op_validateHash_execute(modsec_rec *msr, msre_rule *rule, msre_v
      * and no memory has to be allocated for any backreferences.
      */
     rc = msc_regexec_capture(regex, target, target_length, ovector, 30, &my_error_msg);
+#ifdef WITH_PCRE2
+    if ((rc == PCRE2_ERROR_MATCHLIMIT) || (rc == PCRE2_ERROR_RECURSIONLIMIT)) {
+#else
     if ((rc == PCRE_ERROR_MATCHLIMIT) || (rc == PCRE_ERROR_RECURSIONLIMIT)) {
+#endif
         msc_string *s = (msc_string *)apr_pcalloc(msr->mp, sizeof(msc_string));
 
         if (s == NULL) return -1;
@@ -850,7 +901,11 @@ static int msre_op_validateHash_execute(modsec_rec *msr, msre_rule *rule, msre_v
         return -1;
     }
 
+#ifdef WITH_PCRE2
+    if (rc != PCRE2_ERROR_NOMATCH) { /* Match. */
+#else
     if (rc != PCRE_ERROR_NOMATCH) { /* Match. */
+#endif
         /* We no longer escape the pattern here as it is done when logging */
         char *pattern = apr_pstrdup(msr->mp, log_escape(msr->mp, regex->pattern ? regex->pattern : "<Unknown Match>"));
         char *hmac = NULL, *valid = NULL;
@@ -914,13 +969,15 @@ static int msre_op_validateHash_execute(modsec_rec *msr, msre_rule *rule, msre_v
 /* rx */
 
 static int msre_op_rx_param_init(msre_rule *rule, char **error_msg) {
+    assert(rule != NULL);
+    assert(error_msg != NULL);
     const char *errptr = NULL;
     int erroffset;
     msc_regex_t *regex;
     const char *pattern = rule->op_param;
     #ifdef WITH_PCRE_STUDY
        #ifdef WITH_PCRE_JIT
-    int rc, jit;
+    int rc, jit = 0;
        #endif
     #endif
 
@@ -929,7 +986,12 @@ static int msre_op_rx_param_init(msre_rule *rule, char **error_msg) {
 
     /* Compile pattern */
     if(strstr(pattern,"%{") == NULL)    {
-        regex = msc_pregcomp_ex(rule->ruleset->mp, pattern, PCRE_DOTALL | PCRE_DOLLAR_ENDONLY, &errptr, &erroffset, msc_pcre_match_limit, msc_pcre_match_limit_recursion);
+#ifdef WITH_PCRE2
+        int options = PCRE2_DOTALL | PCRE2_DOLLAR_ENDONLY;
+#else
+        int options = PCRE_DOTALL | PCRE_DOLLAR_ENDONLY;
+#endif
+        regex = msc_pregcomp_ex(rule->ruleset->mp, pattern, options, &errptr, &erroffset, msc_pcre_match_limit, msc_pcre_match_limit_recursion);
         if (regex == NULL) {
             *error_msg = apr_psprintf(rule->ruleset->mp, "Error compiling pattern (offset %d): %s",
                     erroffset, errptr);
@@ -938,7 +1000,11 @@ static int msre_op_rx_param_init(msre_rule *rule, char **error_msg) {
 
         #ifdef WITH_PCRE_STUDY
             #ifdef WITH_PCRE_JIT
+                #ifdef WITH_PCRE2
+        rc = regex->jit_compile_rc;
+                #else
         rc = msc_fullinfo(regex, PCRE_INFO_JIT, &jit);
+                #endif
         if ((rc != 0) || (jit != 1)) {
             *error_msg = apr_psprintf(rule->ruleset->mp,
                     "Rule %pp [id \"%s\"][file \"%s\"][line \"%d\"] - "
@@ -963,11 +1029,21 @@ static int msre_op_rx_param_init(msre_rule *rule, char **error_msg) {
 }
 
 static int msre_op_rx_execute(modsec_rec *msr, msre_rule *rule, msre_var *var, char **error_msg) {
+    assert(msr != NULL);
+    assert(rule != NULL);
+    assert(rule->actionset != NULL);
+    assert(var != NULL);
+    assert(error_msg != NULL);
     msc_regex_t *regex = (msc_regex_t *)rule->op_param_data;
     msc_string *re_pattern = (msc_string *)apr_pcalloc(msr->mp, sizeof(msc_string));
+    if (!re_pattern) {
+        msr_log(msr, 1, "rx: Memory allocation error");
+        return -1;
+    }
     const char *target;
     const char *errptr = NULL;
     int erroffset;
+    int options = 0;
     unsigned int target_length;
     char *my_error_msg = NULL;
     int ovector[33];
@@ -976,16 +1052,14 @@ static int msre_op_rx_execute(modsec_rec *msr, msre_rule *rule, msre_var *var, c
     int matched = 0;
     int rc;
     char *qspos = NULL;
-    const char *parm = NULL, *pattern = NULL;
+    const char *parm = NULL;
     msc_parm *mparm = NULL;
     #ifdef WITH_PCRE_STUDY
        #ifdef WITH_PCRE_JIT
-    int jit;
+    int jit = 0;
        #endif
     #endif
 
-
-    if (error_msg == NULL) return -1;
     *error_msg = NULL;
 
     if (regex == NULL) {
@@ -1004,14 +1078,19 @@ static int msre_op_rx_execute(modsec_rec *msr, msre_rule *rule, msre_var *var, c
 
             expand_macros(msr, re_pattern, rule, msr->mp);
 
-            pattern = log_escape_re(msr->mp, re_pattern->value);
             if (msr->txcfg->debuglog_level >= 6) {
-                msr_log(msr, 6, "Escaping pattern [%s]",pattern);
+                char *pattern = log_escape_re(msr->mp, re_pattern->value);
+                msr_log(msr, 6, "Expanded-macro pattern [%s]",pattern);
             }
 
-            regex = msc_pregcomp_ex(rule->ruleset->mp, pattern, PCRE_DOTALL | PCRE_DOLLAR_ENDONLY, &errptr, &erroffset, msc_pcre_match_limit, msc_pcre_match_limit_recursion);
+#ifdef WITH_PCRE2
+        options = PCRE2_DOTALL | PCRE2_DOLLAR_ENDONLY;
+#else
+        options = PCRE_DOTALL | PCRE_DOLLAR_ENDONLY;
+#endif
+            regex = msc_pregcomp_ex(msr->mp, re_pattern->value, options, &errptr, &erroffset, msc_pcre_match_limit, msc_pcre_match_limit_recursion);
             if (regex == NULL) {
-                *error_msg = apr_psprintf(rule->ruleset->mp, "Error compiling pattern (offset %d): %s",
+                *error_msg = apr_psprintf(msr->mp, "Error compiling pattern (offset %d): %s",
                         erroffset, errptr);
                 return 0;
             }
@@ -1019,9 +1098,13 @@ static int msre_op_rx_execute(modsec_rec *msr, msre_rule *rule, msre_var *var, c
             #ifdef WITH_PCRE_STUDY
                 #ifdef WITH_PCRE_JIT
             if (msr->txcfg->debuglog_level >= 4) {
+                    #ifdef WITH_PCRE2
+                rc = regex->jit_compile_rc;
+                    #else
                 rc = msc_fullinfo(regex, PCRE_INFO_JIT, &jit);
+                    #endif
                 if ((rc != 0) || (jit != 1)) {
-                    *error_msg = apr_psprintf(rule->ruleset->mp,
+                    *error_msg = apr_psprintf(msr->mp,
                             "Rule %pp [id \"%s\"][file \"%s\"][line \"%d\"] - "
                             "Execution error - "
                             "Does not support JIT (%d)",
@@ -1051,20 +1134,27 @@ static int msre_op_rx_execute(modsec_rec *msr, msre_rule *rule, msre_var *var, c
         target_length = var->value_len;
     }
 
-    /* Are we supposed to capture subexpressions? */
-    capture = apr_table_get(rule->actionset->actions, "capture") ? 1 : 0;
-    matched_bytes = apr_table_get(rule->actionset->actions, "sanitizeMatchedBytes") ? 1 : 0;
-    if(!matched_bytes)
-        matched_bytes = apr_table_get(rule->actionset->actions, "sanitiseMatchedBytes") ? 1 : 0;
+    if (rule->actionset->actions) {
+        /* Are we supposed to capture subexpressions? */
+        capture = apr_table_get(rule->actionset->actions, "capture") ? 1 : 0;
+        matched_bytes = apr_table_get(rule->actionset->actions, "sanitizeMatchedBytes") ? 1 : 0;
+        if (!matched_bytes)
+            matched_bytes = apr_table_get(rule->actionset->actions, "sanitiseMatchedBytes") ? 1 : 0;
 
-    matched = apr_table_get(rule->actionset->actions, "sanitizeMatched") ? 1 : 0;
-    if(!matched)
-        matched = apr_table_get(rule->actionset->actions, "sanitiseMatched") ? 1 : 0;
+        matched = apr_table_get(rule->actionset->actions, "sanitizeMatched") ? 1 : 0;
+        if (!matched)
+            matched = apr_table_get(rule->actionset->actions, "sanitiseMatched") ? 1 : 0;
+    }
+    else capture = 0;
 
     /* Show when the regex captures but "capture" is not set */
     if (msr->txcfg->debuglog_level >= 6) {
         int capcount = 0;
+#ifdef WITH_PCRE2
+        rc = msc_fullinfo(regex, PCRE2_INFO_CAPTURECOUNT, &capcount);
+#else
         rc = msc_fullinfo(regex, PCRE_INFO_CAPTURECOUNT, &capcount);
+#endif
         if (msr->txcfg->debuglog_level >= 6) {
             if ((capture == 0) && (capcount > 0)) {
                 msr_log(msr, 6, "Ignoring regex captures since \"capture\" action is not enabled.");
@@ -1076,7 +1166,11 @@ static int msre_op_rx_execute(modsec_rec *msr, msre_rule *rule, msre_var *var, c
      * and no memory has to be allocated for any backreferences.
      */
     rc = msc_regexec_capture(regex, target, target_length, ovector, 30, &my_error_msg);
+#ifdef WITH_PCRE2
+    if ((rc == PCRE2_ERROR_MATCHLIMIT) || (rc == PCRE2_ERROR_RECURSIONLIMIT)) {
+#else
     if ((rc == PCRE_ERROR_MATCHLIMIT) || (rc == PCRE_ERROR_RECURSIONLIMIT)) {
+#endif
         msc_string *s = (msc_string *)apr_pcalloc(msr->mp, sizeof(msc_string));
 
         if (s == NULL) return -1;
@@ -1167,7 +1261,11 @@ static int msre_op_rx_execute(modsec_rec *msr, msre_rule *rule, msre_var *var, c
         }
     }
 
+#ifdef WITH_PCRE2
+    if (rc != PCRE2_ERROR_NOMATCH) { /* Match. */
+#else
     if (rc != PCRE_ERROR_NOMATCH) { /* Match. */
+#endif
         /* We no longer escape the pattern here as it is done when logging */
         char *pattern = apr_pstrdup(msr->mp, log_escape(msr->mp, regex->pattern ? regex->pattern : "<Unknown Match>"));
 
@@ -1190,6 +1288,9 @@ static int msre_op_rx_execute(modsec_rec *msr, msre_rule *rule, msre_var *var, c
 /* pm */
 
 static int msre_op_pm_param_init(msre_rule *rule, char **error_msg) {
+    assert(rule != NULL);
+    assert(rule->ruleset != NULL);
+    assert(error_msg != NULL);
     ACMP *p;
     const char *phrase;
     const char *next;
@@ -1228,6 +1329,9 @@ static int msre_op_pm_param_init(msre_rule *rule, char **error_msg) {
 /* pmFromFile */
 
 static int msre_op_pmFromFile_param_init(msre_rule *rule, char **error_msg) {
+    assert(rule != NULL);
+    assert(rule->ruleset != NULL);
+    assert(error_msg != NULL);
     char errstr[1024];
     char buf[HUGE_STRING_LEN + 1];
     char *fn = NULL;
@@ -1387,6 +1491,11 @@ static int msre_op_pmFromFile_param_init(msre_rule *rule, char **error_msg) {
 }
 
 static int msre_op_pm_execute(modsec_rec *msr, msre_rule *rule, msre_var *var, char **error_msg) {
+    assert(msr != NULL);
+    assert(rule != NULL);
+    assert(rule->actionset != NULL);
+    assert(var != NULL);
+    assert(error_msg != NULL);
     const char *match = NULL;
     apr_status_t rc = 0;
     int capture;
@@ -1396,7 +1505,9 @@ static int msre_op_pm_execute(modsec_rec *msr, msre_rule *rule, msre_var *var, c
     if ((var->value == NULL) || (var->value_len == 0)) return 0;
 
     /* Are we supposed to capture subexpressions? */
-    capture = apr_table_get(rule->actionset->actions, "capture") ? 1 : 0;
+    if (rule->actionset->actions)
+        capture = apr_table_get(rule->actionset->actions, "capture") ? 1 : 0;
+    else capture = 0;
 
     if (rule->op_param_data == NULL)
     {
@@ -1468,18 +1579,17 @@ static int msre_op_pm_execute(modsec_rec *msr, msre_rule *rule, msre_var *var, c
  * \retval url On Success
  */
 static const char *gsb_replace_tpath(apr_pool_t *pool, const char *domain, int len)    {
-
+    assert(domain != NULL);
     char *pos = NULL, *data = NULL;
     char *url = NULL;
     int match = 0;
 
     url = apr_palloc(pool, len + 1);
+    if (!url) return NULL;
     data = apr_palloc(pool, len + 1);
+    if (!data) return NULL;
 
-    memset(data, 0, len+1);
-    memset(url, 0, len+1);
-
-    memcpy(url, domain, len);
+    url[len] = '\0';
 
     while(( pos = strstr(url , "/./" )) != NULL) {
         match = 1;
@@ -1490,8 +1600,7 @@ static const char *gsb_replace_tpath(apr_pool_t *pool, const char *domain, int l
         strncpy(url , data, len);
     }
 
-    if(match == 0)
-        return domain;
+    if (match == 0) return domain;
 
     return url;
 }
@@ -1506,7 +1615,7 @@ static const char *gsb_replace_tpath(apr_pool_t *pool, const char *domain, int l
  * \retval reduced On Success
  */
 static const char *gsb_reduce_char(apr_pool_t *pool, const char *domain) {
-
+    assert(domain != NULL);
     char *ptr = apr_pstrdup(pool, domain);
     char *data = NULL;
     char *reduced = NULL;
@@ -1573,13 +1682,14 @@ static const char *gsb_reduce_char(apr_pool_t *pool, const char *domain) {
  * \retval 0 On No Match
  */
 static int verify_gsb(gsb_db *gsb, modsec_rec *msr, const char *match, unsigned int match_length) {
+    assert(gsb != NULL);
+    assert(msr != NULL);
+    assert(match != NULL);
     apr_md5_ctx_t ctx;
     apr_status_t rc;
     unsigned char digest[APR_MD5_DIGESTSIZE];
     const char *hash = NULL;
     const char *search = NULL;
-
-    memset(digest, 0, sizeof(digest));
 
     apr_md5_init(&ctx);
 
@@ -1588,7 +1698,7 @@ static int verify_gsb(gsb_db *gsb, modsec_rec *msr, const char *match, unsigned 
 
     apr_md5_final(digest, &ctx);
 
-    hash = apr_psprintf(msr->mp, "%s", bytes2hex(msr->mp, digest, 16));
+    hash = apr_psprintf(msr->mp, "%s", bytes2hex(msr->mp, digest, APR_MD5_DIGESTSIZE));
 
     if ((hash != NULL) && (gsb->gsb_table != NULL))   {
         search = apr_hash_get(gsb->gsb_table, hash, APR_HASH_KEY_STRING);
@@ -1610,15 +1720,23 @@ static int verify_gsb(gsb_db *gsb, modsec_rec *msr, const char *match, unsigned 
  * \retval 0 On Fail
  */
 static int msre_op_gsbLookup_param_init(msre_rule *rule, char **error_msg) {
+    assert(rule != NULL);
+    assert(error_msg != NULL);
     const char *errptr = NULL;
     int erroffset;
+    int options = 0;
     msc_regex_t *regex;
 
     if (error_msg == NULL) return -1;
     *error_msg = NULL;
 
     /* Compile rule->op_param */
-    regex = msc_pregcomp_ex(rule->ruleset->mp, rule->op_param, PCRE_DOTALL | PCRE_MULTILINE, &errptr, &erroffset, msc_pcre_match_limit, msc_pcre_match_limit_recursion);
+#ifdef WITH_PCRE2
+    options = PCRE2_DOTALL | PCRE2_MULTILINE;
+#else
+    options = PCRE_DOTALL | PCRE_MULTILINE;
+#endif
+    regex = msc_pregcomp_ex(rule->ruleset->mp, rule->op_param, options, &errptr, &erroffset, msc_pcre_match_limit, msc_pcre_match_limit_recursion);
 
     if (regex == NULL) {
         *error_msg = apr_psprintf(rule->ruleset->mp, "Error compiling pattern (offset %d): %s",
@@ -1644,10 +1762,15 @@ static int msre_op_gsbLookup_param_init(msre_rule *rule, char **error_msg) {
  * \retval 0 On No Match
  */
 static int msre_op_gsbLookup_execute(modsec_rec *msr, msre_rule *rule, msre_var *var, char **error_msg) {
+    assert(msr != NULL);
+    assert(rule != NULL);
+    assert(var != NULL);
+    assert(error_msg != NULL);
     msc_regex_t *regex = (msc_regex_t *)rule->op_param_data;
     char *my_error_msg = NULL;
     int ovector[33];
     unsigned int offset = 0;
+    int options = 0;
     gsb_db *gsb = msr->txcfg->gsb;
     const char *match = NULL;
     unsigned int match_length;
@@ -1675,7 +1798,7 @@ static int msre_op_gsbLookup_execute(modsec_rec *msr, msre_rule *rule, msre_var 
         return 0;
     }
 
-    data = apr_pcalloc(rule->ruleset->mp, var->value_len+1);
+    data = apr_pcalloc(msr->mp, var->value_len+1);
 
     if(data == NULL)    {
         *error_msg = "Internal Error: cannot allocate memory for data.";
@@ -1686,22 +1809,27 @@ static int msre_op_gsbLookup_execute(modsec_rec *msr, msre_rule *rule, msre_var 
 
     memcpy(data,var->value,var->value_len);
 
-    while (offset < size && (rv = msc_regexec_ex(regex, data, size, offset, PCRE_NOTEMPTY, ovector, 30, &my_error_msg)) >= 0)
+#ifdef WITH_PCRE2
+    options = PCRE2_NOTEMPTY;
+#else
+    options = PCRE_NOTEMPTY;
+#endif
+    while (offset < size && (rv = msc_regexec_ex(regex, data, size, offset, options, ovector, 30, &my_error_msg)) >= 0)
     {
         for(i = 0; i < rv; ++i)
         {
-            match = apr_psprintf(rule->ruleset->mp, "%.*s", ovector[2*i+1] - ovector[2*i], data + ovector[2*i]);
+            match = apr_psprintf(msr->mp, "%.*s", ovector[2*i+1] - ovector[2*i], data + ovector[2*i]);
 
             if (match == NULL)  {
                 *error_msg = "Internal Error: cannot allocate memory for match.";
                 return -1;
             }
 
-            match = remove_escape(rule->ruleset->mp, match, strlen(match));
+            match = remove_escape(msr->mp, match, strlen(match));
 
-            match = gsb_replace_tpath(rule->ruleset->mp, match, strlen(match));
+            match = gsb_replace_tpath(msr->mp, match, strlen(match));
 
-            match = gsb_reduce_char(rule->ruleset->mp, match);
+            match = gsb_reduce_char(msr->mp, match);
 
             match_length = strlen(match);
 
@@ -1723,7 +1851,7 @@ static int msre_op_gsbLookup_execute(modsec_rec *msr, msre_rule *rule, msre_var 
                                 log_escape_nq(msr->mp, match));
                     }
 
-                    str = apr_pstrdup(rule->ruleset->mp,match);
+                    str = apr_pstrdup(msr->mp,match);
 
                     base = apr_strtok(str,"/",&savedptr);
                     if(base != NULL)
@@ -1735,7 +1863,7 @@ static int msre_op_gsbLookup_execute(modsec_rec *msr, msre_rule *rule, msre_var 
                 /* append / in the end of full url */
                 if ((match[match_length -1] != '/') && (strchr(match,'?') == NULL))    {
 
-                    canon = apr_psprintf(rule->ruleset->mp, "%s/", match);
+                    canon = apr_psprintf(msr->mp, "%s/", match);
                     if (canon != NULL)  {
 
                         canon_length = strlen(canon);
@@ -1748,7 +1876,7 @@ static int msre_op_gsbLookup_execute(modsec_rec *msr, msre_rule *rule, msre_var 
                                         log_escape_nq(msr->mp, canon));
                             }
 
-                            str = apr_pstrdup(rule->ruleset->mp,match);
+                            str = apr_pstrdup(msr->mp,match);
 
                             base = apr_strtok(str,"/",&savedptr);
                             if(base != NULL)
@@ -1761,7 +1889,7 @@ static int msre_op_gsbLookup_execute(modsec_rec *msr, msre_rule *rule, msre_var 
 
                 /* Parsing full url */
 
-                domain = apr_pstrdup(rule->ruleset->mp, match);
+                domain = apr_pstrdup(msr->mp, match);
 
                 domain_len = strlen(domain);
 
@@ -1776,7 +1904,7 @@ static int msre_op_gsbLookup_execute(modsec_rec *msr, msre_rule *rule, msre_var 
 
                     dot = strchr(domain,'.');
                     if(dot != NULL) {
-                        canon = apr_pstrdup(rule->ruleset->mp, domain);
+                        canon = apr_pstrdup(msr->mp, domain);
 
                         ret = verify_gsb(gsb, msr, canon, strlen(canon));
 
@@ -1787,7 +1915,7 @@ static int msre_op_gsbLookup_execute(modsec_rec *msr, msre_rule *rule, msre_var 
                                         log_escape_nq(msr->mp, canon));
                             }
 
-                            str = apr_pstrdup(rule->ruleset->mp,match);
+                            str = apr_pstrdup(msr->mp,match);
 
                             base = apr_strtok(str,"/",&savedptr);
                             if(base != NULL)
@@ -1809,7 +1937,7 @@ static int msre_op_gsbLookup_execute(modsec_rec *msr, msre_rule *rule, msre_var 
                                             log_escape_nq(msr->mp, base));
                                 }
 
-                                str = apr_pstrdup(rule->ruleset->mp,match);
+                                str = apr_pstrdup(msr->mp,match);
 
                                 base = apr_strtok(str,"/",&savedptr);
                                 if(base != NULL)
@@ -1820,13 +1948,13 @@ static int msre_op_gsbLookup_execute(modsec_rec *msr, msre_rule *rule, msre_var 
 
                         }
 
-                        url = apr_palloc(rule->ruleset->mp, strlen(canon));
+                        url = apr_palloc(msr->mp, strlen(canon));
                         count_slash = 0;
 
                         while(*canon != '\0') {
                             switch (*canon)   {
                                 case '/':
-                                    ptr = apr_psprintf(rule->ruleset->mp,"%s/",url);
+                                    ptr = apr_psprintf(msr->mp,"%s/",url);
                                     ret = verify_gsb(gsb, msr, ptr, strlen(ptr));
                                     if(ret > 0) {
                                         set_match_to_tx(msr, capture, ptr, 0);
@@ -1835,7 +1963,7 @@ static int msre_op_gsbLookup_execute(modsec_rec *msr, msre_rule *rule, msre_var 
                                                     log_escape_nq(msr->mp, ptr));
                                         }
 
-                                        str = apr_pstrdup(rule->ruleset->mp,match);
+                                        str = apr_pstrdup(msr->mp,match);
 
                                         base = apr_strtok(str,"/",&savedptr);
                                         if(base != NULL)
@@ -1862,7 +1990,7 @@ static int msre_op_gsbLookup_execute(modsec_rec *msr, msre_rule *rule, msre_var 
                 }
 
 
-                str = apr_pstrdup(rule->ruleset->mp, match);
+                str = apr_pstrdup(msr->mp, match);
 
                 while (*str != '\0')   {
 
@@ -1887,7 +2015,7 @@ static int msre_op_gsbLookup_execute(modsec_rec *msr, msre_rule *rule, msre_var 
 
                                 dot = strchr(domain,'.');
                                 if(dot != NULL) {
-                                    canon = apr_pstrdup(rule->ruleset->mp, domain);
+                                    canon = apr_pstrdup(msr->mp, domain);
 
                                     ret = verify_gsb(gsb, msr, canon, strlen(canon));
 
@@ -1897,7 +2025,7 @@ static int msre_op_gsbLookup_execute(modsec_rec *msr, msre_rule *rule, msre_var 
                                             *error_msg = apr_psprintf(msr->mp, "Gsb lookup for \"%s\" succeeded.",
                                                     log_escape_nq(msr->mp, canon));
                                         }
-                                        str = apr_pstrdup(rule->ruleset->mp,match);
+                                        str = apr_pstrdup(msr->mp,match);
 
                                         base = apr_strtok(str,"/",&savedptr);
                                         if(base != NULL)
@@ -1917,7 +2045,7 @@ static int msre_op_gsbLookup_execute(modsec_rec *msr, msre_rule *rule, msre_var 
                                                 *error_msg = apr_psprintf(msr->mp, "Gsb lookup for \"%s\" succeeded.",
                                                         log_escape_nq(msr->mp, base));
                                             }
-                                            str = apr_pstrdup(rule->ruleset->mp,match);
+                                            str = apr_pstrdup(msr->mp,match);
 
                                             base = apr_strtok(str,"/",&savedptr);
                                             if(base != NULL)
@@ -1927,13 +2055,13 @@ static int msre_op_gsbLookup_execute(modsec_rec *msr, msre_rule *rule, msre_var 
 
                                     }
 
-                                    url = apr_palloc(rule->ruleset->mp, strlen(canon));
+                                    url = apr_palloc(msr->mp, strlen(canon));
                                     count_slash = 0;
 
                                     while(*canon != '\0') {
                                         switch (*canon)   {
                                             case '/':
-                                                ptr = apr_psprintf(rule->ruleset->mp,"%s/",url);
+                                                ptr = apr_psprintf(msr->mp,"%s/",url);
                                                 ret = verify_gsb(gsb, msr, ptr, strlen(ptr));
                                                 if(ret > 0) {
                                                     set_match_to_tx(msr, capture, ptr, 0);
@@ -1941,7 +2069,7 @@ static int msre_op_gsbLookup_execute(modsec_rec *msr, msre_rule *rule, msre_var 
                                                         *error_msg = apr_psprintf(msr->mp, "Gsb lookup for \"%s\" succeeded.",
                                                                 log_escape_nq(msr->mp, ptr));
                                                     }
-                                                    str = apr_pstrdup(rule->ruleset->mp,match);
+                                                    str = apr_pstrdup(msr->mp,match);
 
                                                     base = apr_strtok(str,"/",&savedptr);
                                                     if(base != NULL)
@@ -1977,12 +2105,18 @@ static int msre_op_gsbLookup_execute(modsec_rec *msr, msre_rule *rule, msre_var 
 /* within */
 
 static int msre_op_within_execute(modsec_rec *msr, msre_rule *rule, msre_var *var, char **error_msg) {
+    assert(msr != NULL);
+    assert(rule != NULL);
+    assert(var != NULL);
+    assert(error_msg != NULL);
     msc_string *str = (msc_string *)apr_pcalloc(msr->mp, sizeof(msc_string));
     const char *match = NULL;
     const char *target;
     unsigned int match_length;
     unsigned int target_length = 0;
     unsigned int i, i_max;
+
+    *error_msg = NULL;
 
     str->value = (char *)rule->op_param;
 
@@ -1992,9 +2126,6 @@ static int msre_op_within_execute(modsec_rec *msr, msre_rule *rule, msre_var *va
     }
 
     str->value_len = strlen(str->value);
-
-    if (error_msg == NULL) return -1;
-    *error_msg = NULL;
 
     expand_macros(msr, str, rule, msr->mp);
 
@@ -2047,15 +2178,22 @@ static int msre_op_within_execute(modsec_rec *msr, msre_rule *rule, msre_var *va
 /* contains */
 
 static int msre_op_contains_execute(modsec_rec *msr, msre_rule *rule, msre_var *var, char **error_msg) {
-    msc_string *str = (msc_string *)apr_pcalloc(msr->mp, sizeof(msc_string));
+    assert(msr != NULL);
+    assert(rule != NULL);
+    assert(var != NULL);
+    assert(error_msg != NULL);
     const char *match = NULL;
     const char *target;
     unsigned int match_length;
     unsigned int target_length = 0;
     unsigned int i, i_max;
+    msc_string *str = (msc_string *)apr_pcalloc(msr->mp, sizeof(msc_string));
+    if (str == NULL) {
+        *error_msg = "Internal Error: cannot allocate memory.";
+        return -1;
+    }
 
     str->value = (char *)rule->op_param;
-
     if (str->value == NULL) {
         *error_msg = "Internal Error: match string is null.";
         return -1;
@@ -2126,7 +2264,12 @@ static int msre_op_contains_execute(modsec_rec *msr, msre_rule *rule, msre_var *
  */
 static int msre_op_detectSQLi_execute(modsec_rec *msr, msre_rule *rule, msre_var *var,
     char **error_msg) {
-
+    assert(msr != NULL);
+    assert(rule != NULL);
+    assert(rule->actionset != NULL);
+    assert(rule->actionset->actions != NULL);
+    assert(var != NULL);
+    assert(error_msg != NULL);
     char fingerprint[8];
     int issqli;
     int capture;
@@ -2158,12 +2301,20 @@ static int msre_op_detectSQLi_execute(modsec_rec *msr, msre_rule *rule, msre_var
  */
 static int msre_op_detectXSS_execute(modsec_rec *msr, msre_rule *rule, msre_var *var,
     char **error_msg) {
-
+    assert(msr != NULL);
+    assert(rule != NULL);
+    assert(rule->actionset != NULL);
+    assert(rule->actionset->actions != NULL);
+    assert(var != NULL);
+    assert(error_msg != NULL);
+    int capture;
     int is_xss;
 
     is_xss = libinjection_xss(var->value, var->value_len);
+    capture = apr_table_get(rule->actionset->actions, "capture") ? 1 : 0;
 
     if (is_xss) {
+        set_match_to_tx(msr, capture, var->value, 0);
         *error_msg = apr_psprintf(msr->mp, "detected XSS using libinjection.");
 
         if (msr->txcfg->debuglog_level >= 9) {
@@ -2182,16 +2333,23 @@ static int msre_op_detectXSS_execute(modsec_rec *msr, msre_rule *rule, msre_var 
 /* containsWord */
 
 static int msre_op_containsWord_execute(modsec_rec *msr, msre_rule *rule, msre_var *var, char **error_msg) {
-    msc_string *str = (msc_string *)apr_pcalloc(msr->mp, sizeof(msc_string));
+    assert(msr != NULL);
+    assert(rule != NULL);
+    assert(var != NULL);
+    assert(error_msg != NULL);
     const char *match = NULL;
     const char *target;
     unsigned int match_length;
     unsigned int target_length = 0;
     unsigned int i, i_max;
     int rc = 0;
+    msc_string *str = (msc_string *)apr_pcalloc(msr->mp, sizeof(msc_string));
+    if (str == NULL) {
+        *error_msg = "Internal Error: cannot allocate memory.";
+        return -1;
+    }
 
     str->value = (char *)rule->op_param;
-
     if (str->value == NULL) {
         *error_msg = "Internal Error: match string is null.";
         return -1;
@@ -2199,7 +2357,6 @@ static int msre_op_containsWord_execute(modsec_rec *msr, msre_rule *rule, msre_v
 
     str->value_len = strlen(str->value);
 
-    if (error_msg == NULL) return -1;
     *error_msg = NULL;
 
     expand_macros(msr, str, rule, msr->mp);
@@ -2277,14 +2434,21 @@ static int msre_op_containsWord_execute(modsec_rec *msr, msre_rule *rule, msre_v
 /* streq */
 
 static int msre_op_streq_execute(modsec_rec *msr, msre_rule *rule, msre_var *var, char **error_msg) {
+    assert(msr != NULL);
+    assert(rule != NULL);
+    assert(var != NULL);
+    assert(error_msg != NULL);
     msc_string *str = (msc_string *)apr_pcalloc(msr->mp, sizeof(msc_string));
+    if (!str) {
+        msr_log(msr, 1, "streq: Memory allocation error");
+        return -1;
+    }
     const char *match = NULL;
     const char *target;
     unsigned int match_length;
     unsigned int target_length;
 
     str->value = (char *)rule->op_param;
-
     if (str->value == NULL) {
         *error_msg = "Internal Error: match string is null.";
         return -1;
@@ -2292,7 +2456,6 @@ static int msre_op_streq_execute(modsec_rec *msr, msre_rule *rule, msre_var *var
 
     str->value_len = strlen(str->value);
 
-    if (error_msg == NULL) return -1;
     *error_msg = NULL;
 
     expand_macros(msr, str, rule, msr->mp);
@@ -2333,14 +2496,21 @@ static int msre_op_streq_execute(modsec_rec *msr, msre_rule *rule, msre_var *var
 /* beginsWith */
 
 static int msre_op_beginsWith_execute(modsec_rec *msr, msre_rule *rule, msre_var *var, char **error_msg) {
-    msc_string *str = (msc_string *)apr_pcalloc(msr->mp, sizeof(msc_string));
+    assert(msr != NULL);
+    assert(rule != NULL);
+    assert(var != NULL);
+    assert(error_msg != NULL);
     const char *match = NULL;
     const char *target;
     unsigned int match_length;
     unsigned int target_length;
+    msc_string *str = (msc_string *)apr_pcalloc(msr->mp, sizeof(msc_string));
+    if (str == NULL) {
+            *error_msg = "Internal Error: cannot allocate memory.";
+            return -1;
+        }
 
     str->value = (char *)rule->op_param;
-
     if (str->value == NULL) {
         *error_msg = "Internal Error: match string is null.";
         return -1;
@@ -2396,14 +2566,26 @@ static int msre_op_beginsWith_execute(modsec_rec *msr, msre_rule *rule, msre_var
 /* endsWith */
 
 static int msre_op_endsWith_execute(modsec_rec *msr, msre_rule *rule, msre_var *var, char **error_msg) {
-    msc_string *str = (msc_string *)apr_pcalloc(msr->mp, sizeof(msc_string));
+    assert(msr != NULL);
+    assert(rule != NULL);
+    assert(var != NULL);
+    assert(error_msg != NULL);
+    // Normally useless code, left to be safe for the moment
+    if (error_msg == NULL) {
+        ap_log_perror(APLOG_MARK, APLOG_EMERG, 0, rule->ruleset->mp, "msre_op_endsWith_execute: error_msg is NULL");
+        return -1;
+    }
     const char *match = NULL;
     const char *target;
     unsigned int match_length;
     unsigned int target_length;
+    msc_string *str = (msc_string *)apr_pcalloc(msr->mp, sizeof(msc_string));
+    if (str == NULL) {
+        *error_msg = "Internal Error: cannot allocate memory.";
+        return -1;
+    }
 
     str->value = (char *)rule->op_param;
-
     if (str->value == NULL) {
         *error_msg = "Internal Error: match string is null.";
         return -1;
@@ -2411,7 +2593,6 @@ static int msre_op_endsWith_execute(modsec_rec *msr, msre_rule *rule, msre_var *
 
     str->value_len = strlen(str->value);
 
-    if (error_msg == NULL) return -1;
     *error_msg = NULL;
 
     expand_macros(msr, str, rule, msr->mp);
@@ -2459,12 +2640,19 @@ static int msre_op_endsWith_execute(modsec_rec *msr, msre_rule *rule, msre_var *
 /* strmatch */
 
 static int msre_op_strmatch_param_init(msre_rule *rule, char **error_msg) {
+    assert(rule != NULL);
+    assert(rule->ruleset != NULL);
+    assert(error_msg != NULL);
+    // Normally useless code, left to be safe for the moment
+    if (error_msg == NULL) {
+        ap_log_perror(APLOG_MARK, APLOG_EMERG, 0, rule->ruleset->mp, "msre_op_strmatch_param_init: error_msg is NULL");
+        return -1;
+    }
     const apr_strmatch_pattern *compiled_pattern;
     char *processed = NULL;
     const char *pattern = rule->op_param;
     unsigned short int op_len;
 
-    if (error_msg == NULL) return -1;
     *error_msg = NULL;
 
     op_len = strlen(pattern);
@@ -2488,12 +2676,20 @@ static int msre_op_strmatch_param_init(msre_rule *rule, char **error_msg) {
 }
 
 static int msre_op_strmatch_execute(modsec_rec *msr, msre_rule *rule, msre_var *var, char **error_msg) {
+    assert(msr != NULL);
+    assert(rule != NULL);
+    assert(var != NULL);
+    assert(error_msg != NULL);
+    // Normally useless code, left to be safe for the moment
+    if (error_msg == NULL) {
+        ap_log_perror(APLOG_MARK, APLOG_EMERG, 0, rule->ruleset->mp, "msre_op_strmatch_execute: error_msg is NULL");
+        return -1;
+    }
     apr_strmatch_pattern *compiled_pattern = (apr_strmatch_pattern *)rule->op_param_data;
     const char *target;
     unsigned int target_length;
     const char *rc;
 
-    if (error_msg == NULL) return -1;
     *error_msg = NULL;
 
     if (compiled_pattern == NULL) {
@@ -2536,6 +2732,10 @@ static int msre_op_validateDTD_init(msre_rule *rule, char **error_msg) {
 static int msre_op_validateDTD_execute(modsec_rec *msr, msre_rule *rule, msre_var *var,
         char **error_msg)
 {
+    assert(msr != NULL);
+    assert(rule != NULL);
+    assert(var != NULL);
+    assert(error_msg != NULL);
     xmlValidCtxtPtr cvp;
     xmlDtdPtr dtd;
 
@@ -2606,6 +2806,10 @@ static int msre_op_validateSchema_init(msre_rule *rule, char **error_msg) {
 static int msre_op_validateSchema_execute(modsec_rec *msr, msre_rule *rule, msre_var *var,
         char **error_msg)
 {
+    assert(msr != NULL);
+    assert(rule != NULL);
+    assert(var != NULL);
+    assert(error_msg != NULL);
     xmlSchemaParserCtxtPtr parserCtx;
     xmlSchemaValidCtxtPtr validCtx;
     xmlSchemaPtr schema;
@@ -2683,6 +2887,7 @@ static int msre_op_validateSchema_execute(modsec_rec *msr, msre_rule *rule, msre
  * Luhn Mod-10 Method (ISO 2894/ANSI 4.13)
  */
 static int luhn_verify(const char *ccnumber, int len) {
+    assert(ccnumber != NULL);
     int sum[2] = { 0, 0 };
     int odd = 0;
     int digits = 0;
@@ -2716,15 +2921,24 @@ static int luhn_verify(const char *ccnumber, int len) {
 }
 
 static int msre_op_verifyCC_init(msre_rule *rule, char **error_msg) {
+    assert(rule != NULL);
+    assert(rule->ruleset != NULL);
+    assert(error_msg != NULL);
     const char *errptr = NULL;
     int erroffset;
+    int options = 0;
     msc_regex_t *regex;
 
     if (error_msg == NULL) return -1;
     *error_msg = NULL;
 
+#ifdef WITH_PCRE2
+    options = PCRE2_DOTALL | PCRE2_MULTILINE;
+#else
+    options = PCRE_DOTALL | PCRE_MULTILINE;
+#endif
     /* Compile rule->op_param */
-    regex = msc_pregcomp_ex(rule->ruleset->mp, rule->op_param, PCRE_DOTALL | PCRE_MULTILINE, &errptr, &erroffset, msc_pcre_match_limit, msc_pcre_match_limit_recursion);
+    regex = msc_pregcomp_ex(rule->ruleset->mp, rule->op_param, options, &errptr, &erroffset, msc_pcre_match_limit, msc_pcre_match_limit_recursion);
     if (regex == NULL) {
         *error_msg = apr_psprintf(rule->ruleset->mp, "Error compiling pattern (offset %d): %s",
                 erroffset, errptr);
@@ -2737,6 +2951,11 @@ static int msre_op_verifyCC_init(msre_rule *rule, char **error_msg) {
 }
 
 static int msre_op_verifyCC_execute(modsec_rec *msr, msre_rule *rule, msre_var *var, char **error_msg) {
+    assert(msr != NULL);
+    assert(rule != NULL);
+    assert(rule->actionset != NULL);
+    assert(var != NULL);
+    assert(error_msg != NULL);
     msc_regex_t *regex = (msc_regex_t *)rule->op_param_data;
     const char *target;
     unsigned int target_length;
@@ -2745,17 +2964,17 @@ static int msre_op_verifyCC_execute(modsec_rec *msr, msre_rule *rule, msre_var *
     int rc;
     int is_cc = 0;
     int offset;
+    int options = 0;
     int matched_bytes = 0;
     char *qspos = NULL;
     const char *parm = NULL;
     msc_parm *mparm = NULL;
     #ifdef WITH_PCRE_STUDY
        #ifdef WITH_PCRE_JIT
-    int jit;
+    int jit = 0;
        #endif
     #endif
 
-    if (error_msg == NULL) return -1;
     *error_msg = NULL;
 
     if (regex == NULL) {
@@ -2763,14 +2982,20 @@ static int msre_op_verifyCC_execute(modsec_rec *msr, msre_rule *rule, msre_var *
         return -1;
     }
 
+    assert(rule->actionset != NULL);
+
     memset(ovector, 0, sizeof(ovector));
 
     #ifdef WITH_PCRE_STUDY
         #ifdef WITH_PCRE_JIT
     if (msr->txcfg->debuglog_level >= 4) {
+            #ifdef WITH_PCRE2
+        rc = regex->jit_compile_rc;
+            #else
         rc = msc_fullinfo(regex, PCRE_INFO_JIT, &jit);
+            #endif
         if ((rc != 0) || (jit != 1)) {
-            *error_msg = apr_psprintf(rule->ruleset->mp,
+            *error_msg = apr_psprintf(msr->mp,
                     "Rule %pp [id \"%s\"][file \"%s\"][line \"%d\"] - "
                     "Execution error - "
                     "Does not support JIT (%d)",
@@ -2804,10 +3029,19 @@ static int msre_op_verifyCC_execute(modsec_rec *msr, msre_rule *rule, msre_var *
             }
         }
 
-        rc = msc_regexec_ex(regex, target, target_length, offset, PCRE_NOTEMPTY, ovector, 30, &my_error_msg);
+#ifdef WITH_PCRE2
+        options = PCRE2_NOTEMPTY;
+#else
+        options = PCRE_NOTEMPTY;
+#endif
+        rc = msc_regexec_ex(regex, target, target_length, offset, options, ovector, 30, &my_error_msg);
 
         /* If there was no match, then we are done. */
+#ifdef WITH_PCRE2
+        if (rc == PCRE2_ERROR_NOMATCH) {
+#else
         if (rc == PCRE_ERROR_NOMATCH) {
+#endif
             break;
         }
 
@@ -2843,7 +3077,6 @@ static int msre_op_verifyCC_execute(modsec_rec *msr, msre_rule *rule, msre_var *
             matched_bytes = apr_table_get(rule->actionset->actions, "sanitizeMatchedBytes") ? 1 : 0;
             if(!matched_bytes)
                 matched_bytes = apr_table_get(rule->actionset->actions, "sanitiseMatchedBytes") ? 1 : 0;
-
 
             if (apr_table_get(rule->actionset->actions, "capture")) {
                 for(; i < rc; i++) {
@@ -2924,7 +3157,7 @@ static int msre_op_verifyCC_execute(modsec_rec *msr, msre_rule *rule, msre_var *
  * \retval 1 On Valid CPF
  */
 static int cpf_verify(const char *cpfnumber, int len) {
-
+    assert(cpfnumber != NULL);
     int factor, part_1, part_2, var_len = len;
     unsigned int sum = 0, i = 0, cpf_len = 11, c;
     int cpf[11];
@@ -3012,15 +3245,27 @@ static int cpf_verify(const char *cpfnumber, int len) {
  * \retval 1 On Success
  */
 static int msre_op_verifyCPF_init(msre_rule *rule, char **error_msg) {
+    assert(rule != NULL);
+    assert(rule->ruleset != NULL);
+    assert(error_msg != NULL);
+    if (error_msg == NULL) {
+        ap_log_perror(APLOG_MARK, APLOG_EMERG, 0, rule->ruleset->mp, "msre_op_verifyCPF_init: error_msg is NULL");
+        return -1;
+    }
     const char *errptr = NULL;
     int erroffset;
+    int options = 0;
     msc_regex_t *regex;
 
-    if (error_msg == NULL) return -1;
     *error_msg = NULL;
 
+#ifdef WITH_PCRE2
+    options = PCRE2_DOTALL | PCRE2_MULTILINE;
+#else
+    options = PCRE_DOTALL | PCRE_MULTILINE;
+#endif
     /* Compile rule->op_param */
-    regex = msc_pregcomp_ex(rule->ruleset->mp, rule->op_param, PCRE_DOTALL | PCRE_MULTILINE, &errptr, &erroffset, msc_pcre_match_limit, msc_pcre_match_limit_recursion);
+    regex = msc_pregcomp_ex(rule->ruleset->mp, rule->op_param, options, &errptr, &erroffset, msc_pcre_match_limit, msc_pcre_match_limit_recursion);
     if (regex == NULL) {
         *error_msg = apr_psprintf(rule->ruleset->mp, "Error compiling pattern (offset %d): %s",
                 erroffset, errptr);
@@ -3045,6 +3290,11 @@ static int msre_op_verifyCPF_init(msre_rule *rule, char **error_msg) {
  * \retval 0 On No Match
  */
 static int msre_op_verifyCPF_execute(modsec_rec *msr, msre_rule *rule, msre_var *var, char **error_msg) {
+    assert(msr != NULL);
+    assert(rule != NULL);
+    assert(rule->actionset != NULL);
+    assert(var != NULL);
+    assert(error_msg != NULL);
     msc_regex_t *regex = (msc_regex_t *)rule->op_param_data;
     const char *target;
     unsigned int target_length;
@@ -3053,18 +3303,17 @@ static int msre_op_verifyCPF_execute(modsec_rec *msr, msre_rule *rule, msre_var 
     int rc;
     int is_cpf = 0;
     int offset;
+    int options = 0;
     int matched_bytes = 0;
     char *qspos = NULL;
     const char *parm = NULL;
     msc_parm *mparm = NULL;
     #ifdef WITH_PCRE_STUDY
        #ifdef WITH_PCRE_JIT
-    int jit;
+    int jit = 0;
        #endif
     #endif
 
-
-    if (error_msg == NULL) return -1;
     *error_msg = NULL;
 
     if (regex == NULL) {
@@ -3072,14 +3321,20 @@ static int msre_op_verifyCPF_execute(modsec_rec *msr, msre_rule *rule, msre_var 
         return -1;
     }
 
+    assert(rule->actionset != NULL);
+
     memset(ovector, 0, sizeof(ovector));
 
     #ifdef WITH_PCRE_STUDY
         #ifdef WITH_PCRE_JIT
     if (msr->txcfg->debuglog_level >= 4) {
+            #ifdef WITH_PCRE2
+        rc = regex->jit_compile_rc;
+            #else
         rc = msc_fullinfo(regex, PCRE_INFO_JIT, &jit);
+            #endif
         if ((rc != 0) || (jit != 1)) {
-            *error_msg = apr_psprintf(rule->ruleset->mp,
+            *error_msg = apr_psprintf(msr->mp,
                     "Rule %pp [id \"%s\"][file \"%s\"][line \"%d\"] - "
                     "Execution error - "
                     "Does not support JIT (%d)",
@@ -3112,10 +3367,19 @@ static int msre_op_verifyCPF_execute(modsec_rec *msr, msre_rule *rule, msre_var 
             }
         }
 
-        rc = msc_regexec_ex(regex, target, target_length, offset, PCRE_NOTEMPTY, ovector, 30, &my_error_msg);
+#ifdef WITH_PCRE2
+        options = PCRE2_NOTEMPTY;
+#else
+        options = PCRE_NOTEMPTY;
+#endif
+        rc = msc_regexec_ex(regex, target, target_length, offset, options, ovector, 30, &my_error_msg);
 
         /* If there was no match, then we are done. */
+#ifdef WITH_PCRE2
+        if (rc == PCRE2_ERROR_NOMATCH) {
+#else
         if (rc == PCRE_ERROR_NOMATCH) {
+#endif
             break;
         }
 
@@ -3126,11 +3390,11 @@ static int msre_op_verifyCPF_execute(modsec_rec *msr, msre_rule *rule, msre_var 
 
         /* Verify a match. */
         if (rc > 0) {
-            const char *match = target + ovector[0];
+            const char* match = target + ovector[0];
             int length = ovector[1] - ovector[0];
             int i = 0;
 
-            offset = ovector[2*i];
+            offset = ovector[2 * i];
 
             /* Check CPF using the match string */
             is_cpf = cpf_verify(match, length);
@@ -3149,12 +3413,12 @@ static int msre_op_verifyCPF_execute(modsec_rec *msr, msre_rule *rule, msre_var 
              */
 
             matched_bytes = apr_table_get(rule->actionset->actions, "sanitizeMatchedBytes") ? 1 : 0;
-            if(!matched_bytes)
+            if (!matched_bytes)
                 matched_bytes = apr_table_get(rule->actionset->actions, "sanitiseMatchedBytes") ? 1 : 0;
 
             if (apr_table_get(rule->actionset->actions, "capture")) {
-                for(; i < rc; i++) {
-                    msc_string *s = (msc_string *)apr_pcalloc(msr->mp, sizeof(msc_string));
+                for (; i < rc; i++) {
+                    msc_string* s = (msc_string*)apr_pcalloc(msr->mp, sizeof(msc_string));
                     if (s == NULL) return -1;
                     s->name = apr_psprintf(msr->mp, "%d", i);
                     if (s->name == NULL) return -1;
@@ -3163,33 +3427,34 @@ static int msre_op_verifyCPF_execute(modsec_rec *msr, msre_rule *rule, msre_var 
                     if (s->value == NULL) return -1;
                     s->value_len = length;
 
-                    apr_table_setn(msr->tx_vars, s->name, (void *)s);
+                    apr_table_setn(msr->tx_vars, s->name, (void*)s);
 
                     if (msr->txcfg->debuglog_level >= 9) {
                         msr_log(msr, 9, "Added regex subexpression to TX.%d: %s", i,
                             log_escape_nq_ex(msr->mp, s->value, s->value_len));
                     }
 
-                    if((matched_bytes == 1) && (var != NULL) && (var->name != NULL))    {
+                    if ((matched_bytes == 1) && (var != NULL) && (var->name != NULL)) {
                         qspos = apr_psprintf(msr->mp, "%s", var->name);
                         parm = strstr(qspos, ":");
-                        if (parm != NULL)   {
+                        if (parm != NULL) {
                             parm++;
                             mparm = apr_palloc(msr->mp, sizeof(msc_parm));
                             if (mparm == NULL)
                                 continue;
 
-                            mparm->value = apr_pstrmemdup(msr->mp,s->value,s->value_len);
+                            mparm->value = apr_pstrmemdup(msr->mp, s->value, s->value_len);
                             mparm->pad_1 = rule->actionset->arg_min;
                             mparm->pad_2 = rule->actionset->arg_max;
-                            apr_table_addn(msr->pattern_to_sanitize, parm, (void *)mparm);
-                        } else  {
+                            apr_table_addn(msr->pattern_to_sanitize, parm, (void*)mparm);
+                        }
+                        else {
                             mparm = apr_palloc(msr->mp, sizeof(msc_parm));
                             if (mparm == NULL)
                                 continue;
 
-                            mparm->value = apr_pstrmemdup(msr->mp,s->value,s->value_len);
-                            apr_table_addn(msr->pattern_to_sanitize, qspos, (void *)mparm);
+                            mparm->value = apr_pstrmemdup(msr->mp, s->value, s->value_len);
+                            apr_table_addn(msr->pattern_to_sanitize, qspos, (void*)mparm);
                         }
                     }
 
@@ -3197,7 +3462,7 @@ static int msre_op_verifyCPF_execute(modsec_rec *msr, msre_rule *rule, msre_var 
             }
 
             /* Unset the remaining TX vars (from previous invocations). */
-            for(; i <= 9; i++) {
+            for (; i <= 9; i++) {
                 char buf[24];
                 apr_snprintf(buf, sizeof(buf), "%i", i);
                 apr_table_unset(msr->tx_vars, buf);
@@ -3232,6 +3497,8 @@ static int msre_op_verifyCPF_execute(modsec_rec *msr, msre_rule *rule, msre_var 
  * \retval 1 On Valid SSN
  */
 static int ssn_verify(modsec_rec *msr, const char *ssnumber, int len) {
+    assert(msr != NULL);
+    assert(ssnumber != NULL);
     int i;
     int num[9];
     int digits = 0;
@@ -3304,15 +3571,24 @@ invalid:
 * \retval 1 On Success
 */
 static int msre_op_verifySSN_init(msre_rule *rule, char **error_msg) {
+    assert(rule != NULL);
+    assert(rule->ruleset != NULL);
+    assert(error_msg != NULL);
     const char *errptr = NULL;
     int erroffset;
+    int options = 0;
     msc_regex_t *regex;
 
     if (error_msg == NULL) return -1;
     *error_msg = NULL;
 
+#ifdef WITH_PCRE2
+    options = PCRE2_DOTALL | PCRE2_MULTILINE;
+#else
+    options = PCRE_DOTALL | PCRE_MULTILINE;
+#endif
     /* Compile rule->op_param */
-    regex = msc_pregcomp_ex(rule->ruleset->mp, rule->op_param, PCRE_DOTALL | PCRE_MULTILINE, &errptr, &erroffset, msc_pcre_match_limit, msc_pcre_match_limit_recursion);
+    regex = msc_pregcomp_ex(rule->ruleset->mp, rule->op_param, options, &errptr, &erroffset, msc_pcre_match_limit, msc_pcre_match_limit_recursion);
     if (regex == NULL) {
         *error_msg = apr_psprintf(rule->ruleset->mp, "Error compiling pattern (offset %d): %s",
             erroffset, errptr);
@@ -3337,6 +3613,11 @@ static int msre_op_verifySSN_init(msre_rule *rule, char **error_msg) {
 * \retval 0 On No Match
 */
 static int msre_op_verifySSN_execute(modsec_rec *msr, msre_rule *rule, msre_var *var, char **error_msg) {
+    assert(msr != NULL);
+    assert(rule != NULL);
+    assert(rule->actionset != NULL);
+    assert(var != NULL);
+    assert(error_msg != NULL);
     msc_regex_t *regex = (msc_regex_t *)rule->op_param_data;
     const char *target;
     unsigned int target_length;
@@ -3345,13 +3626,14 @@ static int msre_op_verifySSN_execute(modsec_rec *msr, msre_rule *rule, msre_var 
     int rc;
     int is_ssn = 0;
     int offset;
+    int options = 0;
     int matched_bytes = 0;
     char *qspos = NULL;
     const char *parm = NULL;
     msc_parm *mparm = NULL;
     #ifdef WITH_PCRE_STUDY
        #ifdef WITH_PCRE_JIT
-    int jit;
+    int jit = 0;
        #endif
     #endif
 
@@ -3364,14 +3646,20 @@ static int msre_op_verifySSN_execute(modsec_rec *msr, msre_rule *rule, msre_var 
         return -1;
     }
 
+    assert(rule->actionset != NULL);
+
     memset(ovector, 0, sizeof(ovector));
 
     #ifdef WITH_PCRE_STUDY
         #ifdef WITH_PCRE_JIT
     if (msr->txcfg->debuglog_level >= 4) {
+            #ifdef WITH_PCRE2
+        rc = regex->jit_compile_rc;
+            #else
         rc = msc_fullinfo(regex, PCRE_INFO_JIT, &jit);
+            #endif
         if ((rc != 0) || (jit != 1)) {
-            *error_msg = apr_psprintf(rule->ruleset->mp,
+            *error_msg = apr_psprintf(msr->mp,
                     "Rule %pp [id \"%s\"][file \"%s\"][line \"%d\"] - "
                     "Execution error - "
                     "Does not support JIT (%d)",
@@ -3404,10 +3692,19 @@ static int msre_op_verifySSN_execute(modsec_rec *msr, msre_rule *rule, msre_var 
             }
         }
 
-        rc = msc_regexec_ex(regex, target, target_length, offset, PCRE_NOTEMPTY, ovector, 30, &my_error_msg);
+#ifdef WITH_PCRE2
+        options = PCRE2_NOTEMPTY;
+#else
+        options = PCRE_NOTEMPTY;
+#endif
+        rc = msc_regexec_ex(regex, target, target_length, offset, options, ovector, 30, &my_error_msg);
 
         /* If there was no match, then we are done. */
+#ifdef WITH_PCRE2
+        if (rc == PCRE2_ERROR_NOMATCH) {
+#else
         if (rc == PCRE_ERROR_NOMATCH) {
+#endif
             break;
         }
 
@@ -3519,6 +3816,9 @@ static int msre_op_verifySSN_execute(modsec_rec *msr, msre_rule *rule, msre_var 
 static int msre_op_geoLookup_execute(modsec_rec *msr, msre_rule *rule, msre_var *var,
     char **error_msg)
 {
+    assert(msr != NULL);
+    assert(var != NULL);
+    assert(error_msg != NULL);
     geo_rec rec;
     geo_db *geo = msr->txcfg->geo;
     const char *geo_host = var->value;
@@ -3645,6 +3945,11 @@ static int msre_op_geoLookup_execute(modsec_rec *msr, msre_rule *rule, msre_var 
 /* rbl */
 
 static int msre_op_rbl_execute(modsec_rec *msr, msre_rule *rule, msre_var *var, char **error_msg) {
+    assert(msr != NULL);
+    assert(rule != NULL);
+    assert(rule->actionset != NULL);
+    assert(var != NULL);
+    assert(error_msg != NULL);
     unsigned int h0, h1, h2, h3;
     unsigned int high8bits = 0;
     char *name_to_check = NULL;
@@ -3653,10 +3958,11 @@ static int msre_op_rbl_execute(modsec_rec *msr, msre_rule *rule, msre_var *var, 
     apr_status_t rc;
     int capture = 0;
 
-    if (error_msg == NULL) return -1;
     *error_msg = NULL;
 
-    capture = apr_table_get(rule->actionset->actions, "capture") ? 1 : 0;
+    if (rule->actionset->actions)
+        capture = apr_table_get(rule->actionset->actions, "capture") ? 1 : 0;
+    else capture = 0;
 
     /* ENH Add IPv6 support. */
 
@@ -3826,6 +4132,13 @@ static int msre_op_rbl_execute(modsec_rec *msr, msre_rule *rule, msre_var *var, 
 /* fuzzyHash */
 static int msre_op_fuzzy_hash_init(msre_rule *rule, char **error_msg)
 {
+    assert(rule != NULL);
+    assert(rule->ruleset != NULL);
+    assert(error_msg != NULL);
+    if (error_msg == NULL) {
+        ap_log_perror(APLOG_MARK, APLOG_EMERG, 0, rule->ruleset->mp, "msre_op_fuzzy_hash_init error_msg is NULL");
+        return -1;
+    }
 #ifdef WITH_SSDEEP
     struct fuzzy_hash_param_data *param_data;
     struct fuzzy_hash_chunk *chunk, *t;
@@ -3845,11 +4158,6 @@ static int msre_op_fuzzy_hash_init(msre_rule *rule, char **error_msg)
     data = apr_pstrdup(rule->ruleset->mp, rule->op_param);
     threshold_str = data;
 #endif
-
-    if (error_msg == NULL)
-    {
-        return -1;
-    }
 
     *error_msg = NULL;
 
@@ -3933,24 +4241,22 @@ invalid_parameters:
 static int msre_op_fuzzy_hash_execute(modsec_rec *msr, msre_rule *rule,
     msre_var *var, char **error_msg)
 {
-
+    assert(msr != NULL);
+    assert(rule != NULL);
+    assert(var != NULL);
+    assert(error_msg != NULL);
 #ifdef WITH_SSDEEP
     char result[FUZZY_MAX_RESULT];
     struct fuzzy_hash_param_data *param = rule->op_param_data;
     struct fuzzy_hash_chunk *chunk = param->head;
 #endif
 
-    if (error_msg == NULL)
-    {
-        return -1;
-    }
-
     *error_msg = NULL;
 
 #ifdef WITH_SSDEEP
     if (fuzzy_hash_buf(var->value, var->value_len, result))
     {
-        *error_msg = apr_psprintf(rule->ruleset->mp, "Problems generating " \
+        *error_msg = apr_psprintf(msr->mp, "Problems generating " \
             "fuzzy hash.");
 
         return -1;
@@ -3970,7 +4276,7 @@ static int msre_op_fuzzy_hash_execute(modsec_rec *msr, msre_rule *rule,
         chunk = chunk->next;
     }
 #else
-    *error_msg = apr_psprintf(rule->ruleset->mp, "ModSecurity was not " \
+    *error_msg = apr_psprintf(msr->mp, "ModSecurity was not " \
         "compiled with ssdeep support.");
 
     return -1;
@@ -3984,9 +4290,15 @@ static int msre_op_fuzzy_hash_execute(modsec_rec *msr, msre_rule *rule,
 /* inspectFile */
 
 static int msre_op_inspectFile_init(msre_rule *rule, char **error_msg) {
+    assert(rule != NULL);
+    assert(rule->ruleset != NULL);
+    assert(error_msg != NULL);
+    if (error_msg == NULL) {
+        ap_log_perror(APLOG_MARK, APLOG_EMERG, 0, rule->ruleset->mp, "msre_op_inspectFile_init: error_msg is NULL");
+        return -1;
+    }
     char *filename = (char *)rule->op_param;
 
-    if (error_msg == NULL) return -1;
     *error_msg = NULL;
 
     if ((filename == NULL)||(is_empty_string(filename))) {
@@ -4025,7 +4337,10 @@ static int msre_op_inspectFile_init(msre_rule *rule, char **error_msg) {
 static int msre_op_inspectFile_execute(modsec_rec *msr, msre_rule *rule, msre_var *var,
     char **error_msg)
 {
-    if (error_msg == NULL) return -1;
+    assert(msr != NULL);
+    assert(rule != NULL);
+    assert(var != NULL);
+    assert(error_msg != NULL);
     *error_msg = NULL;
 
     if (rule->op_param_data == NULL) {
@@ -4086,6 +4401,9 @@ static int msre_op_inspectFile_execute(modsec_rec *msr, msre_rule *rule, msre_va
 /* validateByteRange */
 
 static int msre_op_validateByteRange_init(msre_rule *rule, char **error_msg) {
+    assert(rule != NULL);
+    assert(rule->ruleset != NULL);
+    assert(error_msg != NULL);
     char *p = NULL, *saveptr = NULL;
     char *table = NULL, *data = NULL;
 
@@ -4149,10 +4467,13 @@ static int msre_op_validateByteRange_init(msre_rule *rule, char **error_msg) {
 static int msre_op_validateByteRange_execute(modsec_rec *msr, msre_rule *rule, msre_var *var,
     char **error_msg)
 {
+    assert(msr != NULL);
+    assert(rule != NULL);
+    assert(var != NULL);
+    assert(error_msg != NULL);
     char *table = rule->op_param_data;
     unsigned int i, count;
 
-    if (error_msg == NULL) return -1;
     *error_msg = NULL;
 
     if (table == NULL) {
@@ -4223,6 +4544,9 @@ static int validate_url_encoding(const char *input, long int input_length) {
 static int msre_op_validateUrlEncoding_execute(modsec_rec *msr, msre_rule *rule, msre_var *var,
     char **error_msg)
 {
+    assert(msr != NULL);
+    assert(var != NULL);
+    assert(error_msg != NULL);
     int rc = validate_url_encoding(var->value, var->value_len);
     switch(rc) {
         case 1 :
@@ -4310,7 +4634,7 @@ static int detect_utf8_character(const unsigned char *p_read, unsigned int lengt
         else {
             unicode_len = 4;
             /* compute character number */
-            d = ((c & 0x07) << 18) | ((*(p_read + 1) & 0x3F) << 12) | ((*(p_read + 2) & 0x3F) < 6) | (*(p_read + 3) & 0x3F);
+            d = ((c & 0x07) << 18) | ((*(p_read + 1) & 0x3F) << 12) | ((*(p_read + 2) & 0x3F) << 6) | (*(p_read + 3) & 0x3F);
         }
     }
     /* any other first byte is invalid (RFC 3629) */
@@ -4343,6 +4667,9 @@ static int detect_utf8_character(const unsigned char *p_read, unsigned int lengt
 static int msre_op_validateUtf8Encoding_execute(modsec_rec *msr, msre_rule *rule, msre_var *var,
     char **error_msg)
 {
+    assert(msr != NULL);
+    assert(var != NULL);
+    assert(error_msg != NULL);
     unsigned int i, bytes_left;
 
     bytes_left = var->value_len;
@@ -4400,6 +4727,10 @@ static int msre_op_validateUtf8Encoding_execute(modsec_rec *msr, msre_rule *rule
 static int msre_op_eq_execute(modsec_rec *msr, msre_rule *rule, msre_var *var,
     char **error_msg)
 {
+    assert(msr != NULL);
+    assert(rule != NULL);
+    assert(var != NULL);
+    assert(error_msg != NULL);
     msc_string str;
     int left, right;
     char *target = NULL;
@@ -4438,6 +4769,10 @@ static int msre_op_eq_execute(modsec_rec *msr, msre_rule *rule, msre_var *var,
 static int msre_op_gt_execute(modsec_rec *msr, msre_rule *rule, msre_var *var,
     char **error_msg)
 {
+    assert(msr != NULL);
+    assert(rule != NULL);
+    assert(var != NULL);
+    assert(error_msg != NULL);
     msc_string str;
     int left, right;
     char *target = NULL;
@@ -4481,16 +4816,14 @@ static int msre_op_gt_execute(modsec_rec *msr, msre_rule *rule, msre_var *var,
 static int msre_op_lt_execute(modsec_rec *msr, msre_rule *rule, msre_var *var,
     char **error_msg)
 {
+    assert(msr != NULL);
+    assert(rule != NULL);
+    assert(var != NULL);
+    assert(error_msg != NULL);
     msc_string str;
     int left, right;
     char *target = NULL;
 
-    if ((var->value == NULL)||(rule->op_param == NULL)) {
-        /* NULL values do not match anything. */
-        return 0;
-    }
-
-    if (error_msg == NULL) return -1;
     *error_msg = NULL;
 
     if ((var->value == NULL)||(rule->op_param == NULL)) {
@@ -4524,6 +4857,10 @@ static int msre_op_lt_execute(modsec_rec *msr, msre_rule *rule, msre_var *var,
 static int msre_op_ge_execute(modsec_rec *msr, msre_rule *rule, msre_var *var,
     char **error_msg)
 {
+    assert(msr != NULL);
+    assert(rule != NULL);
+    assert(var != NULL);
+    assert(error_msg != NULL);
     msc_string str;
     int left, right;
     char *target = NULL;
@@ -4567,6 +4904,10 @@ static int msre_op_ge_execute(modsec_rec *msr, msre_rule *rule, msre_var *var,
 static int msre_op_le_execute(modsec_rec *msr, msre_rule *rule, msre_var *var,
     char **error_msg)
 {
+    assert(msr != NULL);
+    assert(rule != NULL);
+    assert(var != NULL);
+    assert(error_msg != NULL);
     msc_string str;
     int left, right;
     char *target = NULL;
@@ -4576,7 +4917,6 @@ static int msre_op_le_execute(modsec_rec *msr, msre_rule *rule, msre_var *var,
         return 0;
     }
 
-    if (error_msg == NULL) return -1;
     *error_msg = NULL;
 
     if ((var->value == NULL)||(rule->op_param == NULL)) {

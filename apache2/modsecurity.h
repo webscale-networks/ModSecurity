@@ -1,6 +1,6 @@
 /*
 * ModSecurity for Apache 2.x, http://www.modsecurity.org/
-* Copyright (c) 2004-2013 Trustwave Holdings, Inc. (http://www.trustwave.com/)
+* Copyright (c) 2004-2022 Trustwave Holdings, Inc. (http://www.trustwave.com/)
 *
 * You may not use this file except in compliance with
 * the License.  You may obtain a copy of the License at
@@ -95,6 +95,8 @@ typedef struct msc_parm msc_parm;
 #define REQUEST_BODY_DEFAULT_INMEMORY_LIMIT     131072
 #define REQUEST_BODY_DEFAULT_LIMIT              134217728
 #define REQUEST_BODY_NO_FILES_DEFAULT_LIMIT     1048576
+#define REQUEST_BODY_JSON_DEPTH_DEFAULT_LIMIT   10000
+#define ARGUMENTS_LIMIT                         1000
 #define RESPONSE_BODY_DEFAULT_LIMIT             524288
 #define RESPONSE_BODY_HARD_LIMIT                1073741824L
 
@@ -132,6 +134,8 @@ typedef struct msc_parm msc_parm;
 #define NOTE_MSR "modsecurity-tx-context"
 
 #define FATAL_ERROR "ModSecurity: Fatal error (memory allocation or unexpected internal error)!"
+
+#define GLOBAL_LOCK_TEMPLATE "/modsec-lock-tmp.XXXXXX"
 
 extern DSOLOCAL char *new_server_signature;
 extern DSOLOCAL char *real_server_signature;
@@ -287,6 +291,10 @@ struct modsec_rec {
     unsigned int         resbody_contains_html;
 
     apr_size_t           stream_input_length;
+#ifdef MSC_LARGE_STREAM_INPUT
+    apr_size_t           stream_input_allocated_length;
+#endif
+
     char                *stream_input_data;
     apr_size_t           stream_output_length;
     char                *stream_output_data;
@@ -488,6 +496,8 @@ struct directory_config {
     long int             reqbody_inmemory_limit;
     long int             reqbody_limit;
     long int             reqbody_no_files_limit;
+    long int             reqbody_json_depth_limit;
+    long int             arguments_limit;
     int                  resbody_access;
 
     long int             of_limit;
@@ -695,6 +705,9 @@ struct msc_parm {
     int                     pad_1;
     int                     pad_2;
 };
+
+/* Reusable functions */
+int acquire_global_lock(apr_global_mutex_t **lock, apr_pool_t *mp);
 
 /* Engine functions */
 

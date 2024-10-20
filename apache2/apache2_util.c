@@ -17,10 +17,16 @@
 #include "http_core.h"
 #include "util_script.h"
 
+#ifdef APLOG_USE_MODULE
+    APLOG_USE_MODULE(security2);
+#endif
+
 /**
  * Sends a brigade with an error bucket down the filter chain.
  */
 apr_status_t send_error_bucket(modsec_rec *msr, ap_filter_t *f, int status) {
+    assert(msr != NULL);
+    assert(f != NULL);
     apr_bucket_brigade *brigade = NULL;
     apr_bucket *bucket = NULL;
 
@@ -57,6 +63,9 @@ apr_status_t send_error_bucket(modsec_rec *msr, ap_filter_t *f, int status) {
  * the "output" parameter.
  */
 int apache2_exec(modsec_rec *msr, const char *command, const char **argv, char **output) {
+    assert(msr != NULL);
+    assert(command != NULL);
+
     apr_procattr_t *procattr = NULL;
     apr_proc_t *procnew = NULL;
     apr_status_t rc = APR_SUCCESS;
@@ -95,7 +104,12 @@ int apache2_exec(modsec_rec *msr, const char *command, const char **argv, char *
         return -1;
     }
 
-    apr_procattr_io_set(procattr, APR_NO_PIPE, APR_FULL_BLOCK, APR_NO_PIPE);
+    rc = apr_procattr_io_set(procattr, APR_NO_PIPE, APR_FULL_BLOCK, APR_NO_PIPE);
+    if (rc != APR_SUCCESS) {
+        msr_log(msr, 1, "Exec: apr_procattr_io_set failed: %d (%s)", rc, get_apr_error(r->pool, rc));
+        return -1;
+    }
+
     apr_procattr_cmdtype_set(procattr, APR_SHELLCMD);
 
     if (msr->txcfg->debuglog_level >= 9) {
@@ -195,6 +209,9 @@ char *get_env_var(request_rec *r, char *name) {
 static void internal_log_ex(request_rec *r, directory_config *dcfg, modsec_rec *msr,
     int level, int fixup, const char *text, va_list ap)
 {
+    assert(r != NULL);
+    assert(msr != NULL);
+    assert(text != NULL);
     apr_size_t nbytes, nbytes_written;
     apr_file_t *debuglog_fd = NULL;
     int filter_debug_level = 0;
@@ -269,19 +286,16 @@ static void internal_log_ex(request_rec *r, directory_config *dcfg, modsec_rec *
 
 #if AP_SERVER_MAJORVERSION_NUMBER > 1 && AP_SERVER_MINORVERSION_NUMBER > 2
 	ap_log_rerror(APLOG_MARK, APLOG_ERR | APLOG_NOERRNO, 0, r,
-            "[client %s] ModSecurity: %s%s [uri \"%s\"]%s", r->useragent_ip ? r->useragent_ip : r->connection->client_ip, str1,
-            hostname, log_escape(msr->mp, r->uri), unique_id);
+            "ModSecurity: %s%s [uri \"%s\"]%s", str1, hostname, log_escape(msr->mp, r->uri), unique_id);
 #else
         ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_NOERRNO, 0, r->server,
-                "[client %s] ModSecurity: %s%s [uri \"%s\"]%s", msr->remote_addr ? msr->remote_addr : r->connection->remote_ip, str1,
-                hostname, log_escape(msr->mp, r->uri), unique_id);
+            "ModSecurity: %s%s [uri \"%s\"]%s", str1, hostname, log_escape(msr->mp, r->uri), unique_id);
 #endif
 
         /* Add this message to the list. */
         if (msr != NULL) {
             /* Force relevency if this is an alert */
             msr->is_relevant++;
-
             *(const char **)apr_array_push(msr->alerts) = apr_pstrdup(msr->mp, str1);
         }
     }
@@ -294,6 +308,8 @@ static void internal_log_ex(request_rec *r, directory_config *dcfg, modsec_rec *
  * Apache error log if the message is important enough.
  */
 void msr_log(modsec_rec *msr, int level, const char *text, ...) {
+    assert(msr != NULL);
+    assert(text != NULL);
     va_list ap;
 
     va_start(ap, text);
@@ -307,6 +323,8 @@ void msr_log(modsec_rec *msr, int level, const char *text, ...) {
  * Apache error log. This is intended for error callbacks.
  */
 void msr_log_error(modsec_rec *msr, const char *text, ...) {
+    assert(msr != NULL);
+    assert(text != NULL);
     va_list ap;
 
     va_start(ap, text);
@@ -321,6 +339,8 @@ void msr_log_error(modsec_rec *msr, const char *text, ...) {
  * The 'text' will first be escaped.
  */
 void msr_log_warn(modsec_rec *msr, const char *text, ...) {
+    assert(msr != NULL);
+    assert(text != NULL);
     va_list ap;
 
     va_start(ap, text);

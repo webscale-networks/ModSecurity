@@ -1,6 +1,6 @@
 /*
 * ModSecurity for Apache 2.x, http://www.modsecurity.org/
-* Copyright (c) 2004-2013 Trustwave Holdings, Inc. (http://www.trustwave.com/)
+* Copyright (c) 2004-2022 Trustwave Holdings, Inc. (http://www.trustwave.com/)
 *
 * You may not use this file except in compliance with
 * the License.  You may obtain a copy of the License at
@@ -22,6 +22,10 @@
 #include "msc_release.h"
 #include "msc_util.h"
 
+#include <apr.h>
+#if APR_HAVE_ARPA_INET_H
+#include <arpa/inet.h>
+#endif
 #include <apr_lib.h>
 #include <apr_sha1.h>
 #include "modsecurity_config.h"
@@ -109,8 +113,9 @@ char *utf8_unicode_inplace_ex(apr_pool_t *mp, unsigned char *input, long int inp
     unsigned char *unicode = NULL;
 
     *changed = 0;
-
-    len = input_len * 7 + 1;
+    /* RFC3629 states that UTF-8 are encoded using sequences of 1 to 4 octets. */
+    /* Max size per character should fit in 4 bytes */
+    len = input_len * 4 + 1;
     data = rval = apr_palloc(mp, len);
     if (rval == NULL) return NULL;
 
@@ -401,7 +406,8 @@ char *parse_pm_content(const char *op_parm, unsigned short int op_len, msre_rule
     char converted = 0;
     int i, x;
     unsigned char bin = 0, esc = 0, bin_offset = 0;
-    unsigned char bin_parm[3], c = 0;
+    unsigned char c = 0;
+    unsigned char bin_parm[3] = { 0 };
     char *processed = NULL;
 
     content = apr_pstrdup(rule->ruleset->mp, op_parm);
@@ -661,6 +667,7 @@ int convert_to_int(const char c)
  * \retval 0 On Sucess|Fail
  */
 int set_match_to_tx(modsec_rec *msr, int capture, const char *match, int tx_n)  {
+    assert(msr != NULL);
 
     if (capture) {
         msc_string *s = (msc_string *)apr_pcalloc(msr->mp, sizeof(msc_string));
@@ -1123,10 +1130,12 @@ char *current_logtime(apr_pool_t *mp) {
     char tstr[100];
     apr_size_t len;
 
-    apr_time_exp_lt(&t, apr_time_now());
+    apr_time_t now = apr_time_now();
+    apr_time_exp_lt(&t, now);
 
-    apr_strftime(tstr, &len, 80, "%d/%b/%Y:%H:%M:%S ", &t);
-    apr_snprintf(tstr + strlen(tstr), 80 - strlen(tstr), "%c%.2d%.2d",
+    apr_strftime(tstr, &len, 80, "%d/%b/%Y:%H:%M:%S.", &t);
+    apr_snprintf(tstr + strlen(tstr), 80 - strlen(tstr), "%06ld %c%.2d%.2d",
+            (long)apr_time_usec(now),
             t.tm_gmtoff < 0 ? '-' : '+',
             t.tm_gmtoff / (60 * 60), (t.tm_gmtoff / 60) % 60);
     return apr_pstrdup(mp, tstr);
@@ -2370,6 +2379,7 @@ apr_fileperms_t mode2fileperms(int mode) {
  * Generate a single variable.
  */
 char *construct_single_var(modsec_rec *msr, char *name) {
+    assert(msr != NULL);
     char *varname = NULL;
     char *param = NULL;
     msre_var *var = NULL;
@@ -2378,6 +2388,7 @@ char *construct_single_var(modsec_rec *msr, char *name) {
 
     /* Extract variable name and its parameter from the script. */
     varname = apr_pstrdup(msr->mp, name);
+    if (varname == NULL) return NULL;
     param = strchr(varname, '.');
     if (param != NULL) {
         *param = '\0';
@@ -2462,28 +2473,16 @@ not_enough_memory:
 
 int read_line(char *buf, int len, FILE *fp)
 {
-    char *tmp;
+    if (buf == NULL) return -1;
 
-    if (buf == NULL)
-    {
-        return -1;
-    }
-
-    memset(buf, '\0', len*sizeof(char));
-
-    if (fgets(buf, len, fp) == NULL)
-    {
+    if (fgets(buf, len, fp) == NULL) {
         *buf = '\0';
         return 0;
     }
-    else
-    {
-        if ((tmp = strrchr(buf, '\n')) != NULL)
-        {
-            *tmp = '\0';
-        }
-    }
-
+    
+    char* tmp;
+    if ((tmp = strrchr(buf, '\n')) != NULL) *tmp = '\0';
+    
     return 1;
 }
 
@@ -2695,6 +2694,10 @@ int ip_tree_from_uri(TreeRoot **rtree, char *uri,
 int tree_contains_ip(apr_pool_t *mp, TreeRoot *rtree,
     const char *value, modsec_rec *msr, char **error_msg)
 {
+    assert(mp != NULL);
+    assert(value != NULL);
+    // msr can be NULL;
+    assert(error_msg != NULL);
     struct in_addr in;
 #if APR_HAVE_IPV6
     struct in6_addr in6;
@@ -2706,26 +2709,26 @@ int tree_contains_ip(apr_pool_t *mp, TreeRoot *rtree,
     }
 
     if (strchr(value, ':') == NULL) {
-        if (inet_pton(AF_INET, value, &in) <= 0) {
+        if (inet_pton(AF_INET, value, &(in.s_addr)) <= 0) {
             *error_msg = apr_psprintf(mp, "IPmatch: bad IPv4 " \
                 "specification \"%s\".", value);
             return -1;
         }
 
-        if (CPTIpMatch(msr, (unsigned char *)&in.s_addr, rtree->ipv4_tree,
+        if (CPTIpMatch(msr, (unsigned char *)&(in.s_addr), rtree->ipv4_tree,
             IPV4_TREE) != NULL) {
             return 1;
         }
     }
 #if APR_HAVE_IPV6
     else {
-        if (inet_pton(AF_INET6, value, &in6) <= 0) {
+        if (inet_pton(AF_INET6, value, &(in6.s6_addr)) <= 0) {
             *error_msg = apr_psprintf(mp, "IPmatch: bad IPv6 " \
                 "specification \"%s\".", value);
             return -1;
         }
 
-        if (CPTIpMatch(msr, (unsigned char *)&in6.s6_addr, rtree->ipv6_tree,
+        if (CPTIpMatch(msr, (unsigned char *)&(in6.s6_addr), rtree->ipv6_tree,
             IPV6_TREE) != NULL) {
             return 1;
         }
@@ -2783,6 +2786,9 @@ size_t msc_curl_write_memory_cb(void *contents, size_t size,
     if (mem->size == 0)
     {
         mem->memory = malloc(realsize + 1);
+        if (mem->memory == NULL) {
+            return 0;
+        }
         memset(mem->memory, '\0', sizeof(realsize + 1));
     }
     else
@@ -2832,3 +2838,14 @@ char* strtok_r(
 }
 #endif
 
+// we cannot log an error message as this happens much too often
+char* get_username(apr_pool_t* mp) {
+    char* username;
+    apr_uid_t uid;
+    apr_gid_t gid;
+    int rc = apr_uid_current(&uid, &gid, mp);
+    if (rc != APR_SUCCESS) return "apache";
+    rc = apr_uid_name_get(&username, uid, mp);
+    if (rc != APR_SUCCESS) return "apache";
+    return username;
+}

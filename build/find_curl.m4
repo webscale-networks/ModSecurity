@@ -18,7 +18,7 @@ AC_DEFUN([CHECK_CURL],
 
 AC_ARG_WITH(
     curl,
-    [AC_HELP_STRING([--with-curl=PATH],[Path to curl prefix or config script])],
+    [AS_HELP_STRING([--with-curl=PATH],[Path to curl prefix or config script])],
     [test_paths="${with_curl}"],
     [test_paths="/usr/local/libcurl /usr/local/curl /usr/local /opt/libcurl /opt/curl /opt /usr"])
 
@@ -54,7 +54,7 @@ if test -n "${curl_path}"; then
         CURL_CONFIG="${curl_path}/${CURL_CONFIG}"
     fi
     AC_MSG_RESULT([${CURL_CONFIG}])
-    CURL_VERSION=`${CURL_CONFIG} --version | sed 's/^[[^0-9]][[^[:space:]]][[^[:space:]]]*[[[:space:]]]*//'`
+    CURL_VERSION=`${CURL_CONFIG} --version | sed 's/^[[^0-9]][[^[:space:]]][[^[:space:]]]*[[[:space:]]]*//' | tr '\r\n' ' '`
     if test "$verbose_output" -eq 1; then AC_MSG_NOTICE(curl VERSION: $CURL_VERSION); fi
     CURL_CFLAGS="`${CURL_CONFIG} --cflags`"
     if test "$verbose_output" -eq 1; then AC_MSG_NOTICE(curl CFLAGS: $CURL_CFLAGS); fi
